@@ -238,7 +238,24 @@
     document.querySelectorAll('.nav-item').forEach(item => item.onclick = () => { showSection(item.dataset.section); $('#sidebar').classList.remove('open'); });
     $('#menuToggle').onclick = () => $('#sidebar').classList.add('open'); $('#closeMenu').onclick = () => $('#sidebar').classList.remove('open');
     $('#googleLogin').onclick = openLogin; $('#avatar').onclick = openLogin; $('#closeModal').onclick = closeLogin; $('#loginModal').onclick = e => { if (e.target.id === 'loginModal') closeLogin(); };
-    $('#connectGoogle').onclick = () => { $('#loginStatus').textContent = window.DJ_CONFIG?.googleClientId ? 'O Google está pronto para ser conectado ao backend.' : 'Configure o Client ID no arquivo config.js primeiro.'; };
+    $('#connectGoogle').onclick = () => {
+      const status = $('#loginStatus');
+      const clientId = String(window.DJ_CONFIG?.googleClientId || '').trim();
+      if (!clientId) { status.textContent = 'Configure o Client ID público no arquivo config.js primeiro.'; return; }
+      if (!window.google?.accounts?.id) { status.textContent = 'O Google ainda está carregando. Tente novamente em alguns segundos.'; return; }
+      status.textContent = 'Abrindo o login seguro do Google...';
+      window.google.accounts.id.initialize({client_id: clientId, callback: (response) => {
+        try {
+          const encoded = String(response.credential || '').split('.')[1];
+          const payload = JSON.parse(decodeURIComponent(escape(atob(encoded.replace(/-/g,'+').replace(/_/g,'/')))));
+          if (payload.email) localStorage.setItem('aurora-google-email', payload.email);
+          status.textContent = payload.email ? 'Conta selecionada: ' + payload.email + '. A validação do servidor será conectada na próxima etapa.' : 'Conta Google selecionada.';
+        } catch (_) { status.textContent = 'Conta selecionada. A validação segura será conectada no backend.'; }
+      }});
+      window.google.accounts.id.prompt((notification) => {
+        if (notification?.isNotDisplayed?.()) status.textContent = 'O Google bloqueou a janela automática. Tente novamente ou permita pop-ups para este site.';
+      });
+    };
     $('#clearSession').onclick = () => { if (state.objectUrl) URL.revokeObjectURL(state.objectUrl); state.objectUrl=''; state.fileName=''; audio.removeAttribute('src'); audio.load(); $('#trackInfo').classList.add('empty'); $('#trackInfo').innerHTML='<div class="track-art">♪</div><div><b>Nenhuma faixa carregada</b><small>Seu áudio fica somente neste dispositivo</small></div><span class="track-time">—</span>'; $('#nowTitle').textContent='Nenhuma faixa selecionada'; $('#nowMeta').textContent='Importe um áudio para começar'; updateQuota(); toast('Sessão limpa.'); };
     $('#learnMore').onclick = () => toast('O áudio é analisado localmente com a Web Audio API.');
     document.addEventListener('pointermove', event => { state.pointer.x = event.clientX / window.innerWidth; state.pointer.y = event.clientY / window.innerHeight; document.documentElement.style.setProperty('--mx', state.pointer.x); document.documentElement.style.setProperty('--my', state.pointer.y); $('.liquid-a').style.transform = 'translate(' + ((state.pointer.x - .5) * 90) + 'px,' + ((state.pointer.y - .5) * 70) + 'px)'; $('.liquid-b').style.transform = 'translate(' + ((.5 - state.pointer.x) * 80) + 'px,' + ((.5 - state.pointer.y) * 60) + 'px)'; });
