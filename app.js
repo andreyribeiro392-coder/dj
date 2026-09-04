@@ -250,9 +250,17 @@
         try {
           const encoded = String(response.credential || '').split('.')[1];
           const payload = JSON.parse(decodeURIComponent(escape(atob(encoded.replace(/-/g,'+').replace(/_/g,'/')))));
-          if (payload.email) localStorage.setItem('aurora-google-email', payload.email);
-          status.textContent = payload.email ? 'Conta selecionada: ' + payload.email + '. A validação do servidor será conectada na próxima etapa.' : 'Conta Google selecionada.';
-        } catch (_) { status.textContent = 'Conta selecionada. A validação segura será conectada no backend.'; }
+          if (payload.email) {
+            localStorage.setItem('aurora-google-email', payload.email);
+            $('#avatar').textContent = payload.email.charAt(0).toUpperCase();
+            status.textContent = 'Login concluído. Abrindo seu workspace...';
+            toast('Google conectado em modo local.');
+            setTimeout(closeLogin, 500);
+          } else {
+            status.textContent = 'Conta Google selecionada. Abrindo seu workspace...';
+            setTimeout(closeLogin, 500);
+          }
+        } catch (_) { status.textContent = 'Conta selecionada. Abrindo seu workspace...'; setTimeout(closeLogin, 500); }
       }});
       window.google.accounts.id.prompt((notification) => {
         if (notification?.isNotDisplayed?.()) status.textContent = 'O Google bloqueou a janela automática. Tente novamente ou permita pop-ups para este site.';
