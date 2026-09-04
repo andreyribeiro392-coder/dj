@@ -1,0 +1,10 @@
+{
+  "name": "AURORA DJ Studio",
+  "short_name": "AURORA DJ",
+  "description": "Mixer e visualizador de áudio local.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#070a0f",
+  "theme_color": "#070a0f",
+  "icons": []
+}
