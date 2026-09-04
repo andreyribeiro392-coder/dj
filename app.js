@@ -237,14 +237,15 @@
     document.querySelectorAll('[data-visual]').forEach(btn => btn.onclick = () => { state.visual = btn.dataset.visual; document.querySelectorAll('[data-visual]').forEach(x => x.classList.toggle('active', x === btn)); });
     document.querySelectorAll('.nav-item').forEach(item => item.onclick = () => { showSection(item.dataset.section); $('#sidebar').classList.remove('open'); });
     $('#menuToggle').onclick = () => $('#sidebar').classList.add('open'); $('#closeMenu').onclick = () => $('#sidebar').classList.remove('open');
-    $('#googleLogin').onclick = (event) => { event.preventDefault(); window.location.assign('/login.html'); }; $('#avatar').onclick = () => window.location.assign('/login.html'); $('#closeModal').onclick = closeLogin; $('#loginModal').onclick = e => { if (e.target.id === 'loginModal') closeLogin(); };
-    $('#connectGoogle').onclick = () => {
+    if ($('#googleLogin')) $('#googleLogin').onclick = (event) => { event.preventDefault(); window.location.assign('/login.html'); }; if ($('#avatar')) $('#avatar').onclick = (event) => { event.preventDefault(); window.location.assign('/login.html'); }; if ($('#closeModal')) $('#closeModal').onclick = closeLogin; $('#loginModal').onclick = e => { if (e.target.id === 'loginModal') closeLogin(); };
+    const connectGoogle = $('#connectGoogle');
+    if (connectGoogle) connectGoogle.onclick = () => {
       const status = $('#loginStatus');
       const clientId = String(window.DJ_CONFIG?.googleClientId || '837012342265-qmmiq0uthb1v7umr4p4fa6lo619plpna.apps.googleusercontent.com').trim();
-      if (!clientId) { status.textContent = 'Configure o Client ID público no arquivo config.js primeiro.'; return; }
+      if (!clientId) { if (status) status.textContent = 'Configure o Client ID público no arquivo config.js primeiro.'; return; }
       const stateToken = (window.crypto?.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
       localStorage.setItem('aurora-oauth-state', stateToken);
-      status.textContent = 'Redirecionando para o Google...';
+      if (status) status.textContent = 'Redirecionando para o Google...';
       const params = new URLSearchParams({
         client_id: clientId,
         redirect_uri: window.location.origin + '/auth-callback.html',
