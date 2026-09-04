@@ -83,6 +83,16 @@
     </main>
   </div>
   <div class="toast" id="toast" role="status"></div>
+  <div id="loginModal" hidden aria-hidden="true"><span id="loginStatus"></span><button id="connectGoogle" type="button"></button><button id="closeModal" type="button"></button></div>
   <script src="config.js?v=20260904-redirect"></script><script src="app.js?v=20260904-login-v3"></script>
+  <script>
+    (() => {
+      const go = (event) => { if (event) event.preventDefault(); window.location.assign('/login.html'); };
+      const login = document.getElementById('googleLogin');
+      const avatar = document.getElementById('avatar');
+      if (login) login.onclick = go;
+      if (avatar) avatar.onclick = go;
+    })();
+  </script>
 </body>
 </html>
