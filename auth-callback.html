@@ -53,7 +53,7 @@
         if (!response.ok) throw new Error('userinfo');
         const profile = await response.json();
         if (!profile.email) throw new Error('email');
-        localStorage.setItem('aurora-google-email', profile.email);
+        localStorage.setItem('aurora-google-email', profile.email);\n        localStorage.setItem('aurora-auth-v2', '1');
         if (profile.name) localStorage.setItem('aurora-google-name', profile.name);
         localStorage.removeItem('aurora-oauth-state');
         history.replaceState({}, document.title, window.location.pathname);
