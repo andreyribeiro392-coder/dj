@@ -240,7 +240,7 @@
     $('#googleLogin').onclick = (event) => { event.preventDefault(); window.location.assign('/login.html'); }; $('#avatar').onclick = () => window.location.assign('/login.html'); $('#closeModal').onclick = closeLogin; $('#loginModal').onclick = e => { if (e.target.id === 'loginModal') closeLogin(); };
     $('#connectGoogle').onclick = () => {
       const status = $('#loginStatus');
-      const clientId = String(window.DJ_CONFIG?.googleClientId || '837012342265-e0urv72enfukrnolonqpdd3988q3grbq.apps.googleusercontent.com').trim();
+      const clientId = String(window.DJ_CONFIG?.googleClientId || '837012342265-qmmiq0uthb1v7umr4p4fa6lo619plpna.apps.googleusercontent.com').trim();
       if (!clientId) { status.textContent = 'Configure o Client ID público no arquivo config.js primeiro.'; return; }
       const stateToken = (window.crypto?.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
       localStorage.setItem('aurora-oauth-state', stateToken);
