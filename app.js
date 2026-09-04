@@ -238,12 +238,14 @@
     document.querySelectorAll('.nav-item').forEach(item => item.onclick = () => { showSection(item.dataset.section); $('#sidebar').classList.remove('open'); });
     $('#menuToggle').onclick = () => $('#sidebar').classList.add('open'); $('#closeMenu').onclick = () => $('#sidebar').classList.remove('open');
     $('#googleLogin').onclick = openLogin; $('#avatar').onclick = openLogin; $('#closeModal').onclick = closeLogin; $('#loginModal').onclick = e => { if (e.target.id === 'loginModal') closeLogin(); };
-    $('#connectGoogle').onclick = () => {
+    $('#connectGoogle').onclick = async () => {
       const status = $('#loginStatus');
       const clientId = String(window.DJ_CONFIG?.googleClientId || '').trim();
       if (!clientId) { status.textContent = 'Configure o Client ID público no arquivo config.js primeiro.'; return; }
-      if (!window.google?.accounts?.id) { status.textContent = 'O Google ainda está carregando. Tente novamente em alguns segundos.'; return; }
       status.textContent = 'Abrindo o login seguro do Google...';
+      const deadline = Date.now() + 9000;
+      while (!window.google?.accounts?.id && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 250));
+      if (!window.google?.accounts?.id) { status.textContent = 'O Google não carregou. Verifique sua conexão e permita accounts.google.com.'; return; }
       window.google.accounts.id.initialize({client_id: clientId, callback: (response) => {
         try {
           const encoded = String(response.credential || '').split('.')[1];
