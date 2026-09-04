@@ -219,7 +219,7 @@
     if (!view) { view = document.createElement('div'); view.id = 'directoryView'; $('.content').appendChild(view); }
     view.innerHTML = ''; view.appendChild(renderDirectory(section));
   }
-  function openLogin() { $('#loginModal').hidden = false; $('#loginStatus').textContent = window.DJ_CONFIG?.googleClientId ? 'Client ID encontrado. Conecte o fluxo OAuth no backend.' : 'Adicione o Client ID no arquivo config.js para ativar.'; }
+  function openLogin() { $('#loginModal').hidden = false; $('#loginStatus').textContent = window.DJ_CONFIG?.googleClientId ? 'Você será redirecionado para o login seguro do Google.' : 'Adicione o Client ID no arquivo config.js para ativar.'; }
   function closeLogin() { $('#loginModal').hidden = true; }
   function setupEvents() {
     $('#chooseFile').onclick = () => $('#fileInput').click();
@@ -238,33 +238,23 @@
     document.querySelectorAll('.nav-item').forEach(item => item.onclick = () => { showSection(item.dataset.section); $('#sidebar').classList.remove('open'); });
     $('#menuToggle').onclick = () => $('#sidebar').classList.add('open'); $('#closeMenu').onclick = () => $('#sidebar').classList.remove('open');
     $('#googleLogin').onclick = openLogin; $('#avatar').onclick = openLogin; $('#closeModal').onclick = closeLogin; $('#loginModal').onclick = e => { if (e.target.id === 'loginModal') closeLogin(); };
-    $('#connectGoogle').onclick = async () => {
+    $('#connectGoogle').onclick = () => {
       const status = $('#loginStatus');
       const clientId = String(window.DJ_CONFIG?.googleClientId || '').trim();
       if (!clientId) { status.textContent = 'Configure o Client ID público no arquivo config.js primeiro.'; return; }
-      status.textContent = 'Abrindo o login seguro do Google...';
-      const deadline = Date.now() + 9000;
-      while (!window.google?.accounts?.id && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 250));
-      if (!window.google?.accounts?.id) { status.textContent = 'O Google não carregou. Verifique sua conexão e permita accounts.google.com.'; return; }
-      window.google.accounts.id.initialize({client_id: clientId, callback: (response) => {
-        try {
-          const encoded = String(response.credential || '').split('.')[1];
-          const payload = JSON.parse(decodeURIComponent(escape(atob(encoded.replace(/-/g,'+').replace(/_/g,'/')))));
-          if (payload.email) {
-            localStorage.setItem('aurora-google-email', payload.email);
-            $('#avatar').textContent = payload.email.charAt(0).toUpperCase();
-            status.textContent = 'Login concluído. Abrindo seu workspace...';
-            toast('Google conectado em modo local.');
-            setTimeout(closeLogin, 500);
-          } else {
-            status.textContent = 'Conta Google selecionada. Abrindo seu workspace...';
-            setTimeout(closeLogin, 500);
-          }
-        } catch (_) { status.textContent = 'Conta selecionada. Abrindo seu workspace...'; setTimeout(closeLogin, 500); }
-      }});
-      window.google.accounts.id.prompt((notification) => {
-        if (notification?.isNotDisplayed?.()) status.textContent = 'O Google bloqueou a janela automática. Tente novamente ou permita pop-ups para este site.';
+      const stateToken = (window.crypto?.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
+      localStorage.setItem('aurora-oauth-state', stateToken);
+      status.textContent = 'Redirecionando para o Google...';
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: window.location.origin + '/auth-callback.html',
+        response_type: 'token',
+        scope: 'openid email profile',
+        include_granted_scopes: 'true',
+        prompt: 'select_account',
+        state: stateToken
       });
+      window.location.assign('https://accounts.google.com/o/oauth2/v2/auth?' + params.toString());
     };
     $('#clearSession').onclick = () => { if (state.objectUrl) URL.revokeObjectURL(state.objectUrl); state.objectUrl=''; state.fileName=''; audio.removeAttribute('src'); audio.load(); $('#trackInfo').classList.add('empty'); $('#trackInfo').innerHTML='<div class="track-art">♪</div><div><b>Nenhuma faixa carregada</b><small>Seu áudio fica somente neste dispositivo</small></div><span class="track-time">—</span>'; $('#nowTitle').textContent='Nenhuma faixa selecionada'; $('#nowMeta').textContent='Importe um áudio para começar'; updateQuota(); toast('Sessão limpa.'); };
     $('#learnMore').onclick = () => toast('O áudio é analisado localmente com a Web Audio API.');
@@ -272,5 +262,7 @@
     window.addEventListener('resize', resizeCanvas);
     document.addEventListener('keydown', event => { if (event.code === 'Space' && !/input|textarea|select/i.test(document.activeElement.tagName)) { event.preventDefault(); togglePlay(); } if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'e') { event.preventDefault(); exportAudio(); } if (event.key === 'Escape') closeLogin(); });
   }
+  const savedEmail = localStorage.getItem('aurora-google-email');
+  if (savedEmail) $('#avatar').textContent = savedEmail.charAt(0).toUpperCase();
   updateQuota(); setupEvents(); resizeCanvas(); drawVisualizer();
 })();
