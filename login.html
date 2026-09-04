@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#070a0f">
+  <title>Entrar · AURORA DJ Studio</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body.login-page{min-height:100svh;display:grid;place-items:center;padding:24px;background:#070a0f;color:#eef7f8}
+    .login-wrap{width:min(100%,430px)}
+    .login-brand{display:flex;align-items:center;gap:12px;margin:0 0 20px 4px;color:#c8f36d;letter-spacing:.18em;font-size:11px;font-weight:800}
+    .login-brand-mark{display:grid;place-items:center;width:38px;height:38px;border:1px solid #5be6ed66;border-radius:12px;background:#0e2028;color:#5be6ed;font-size:22px}
+    .login-card{position:relative;overflow:hidden;padding:32px 28px 28px;border:1px solid #5be6ed55;border-radius:24px;background:linear-gradient(145deg,#0d1d26ee,#0a1018f2);box-shadow:0 24px 70px #0008}
+    .login-card:before{content:"";position:absolute;inset:-60% 35% auto -35%;height:260px;background:#5be6ed18;filter:blur(50px);pointer-events:none}
+    .login-card>*{position:relative}
+    .login-kicker{color:#5be6ed;letter-spacing:.18em;font-size:10px;font-weight:800}
+    .login-card h1{margin:12px 0 10px;font-size:clamp(28px,7vw,38px);line-height:1.05}
+    .login-card p{margin:0;color:#a8bdc1;line-height:1.6;font-size:14px}
+    .login-google{width:100%;display:flex;align-items:center;justify-content:center;gap:12px;margin:28px 0 14px;padding:15px 18px;border:1px solid #dbe8e933;border-radius:12px;background:#f4f7f7;color:#0b1217;font-weight:800;font-size:15px;cursor:pointer;transition:transform .2s,box-shadow .2s}
+    .login-google:hover{transform:translateY(-2px);box-shadow:0 12px 30px #5be6ed33}
+    .login-google:active{transform:translateY(0)}
+    .google-logo{font-weight:900;color:#4285f4;font-size:19px}
+    .login-note{display:block;color:#799095!important;font-size:12px!important;line-height:1.5!important}
+    .login-status{min-height:18px;margin-top:14px;color:#c8f36d;font-size:12px}
+    .login-foot{margin:16px 4px 0;color:#64797e;font-size:11px;line-height:1.5}
+    @media (max-width:480px){body.login-page{padding:18px}.login-card{padding:28px 22px 24px;border-radius:20px}}
+  </style>
+</head>
+<body class="login-page">
+  <div class="liquid liquid-a"></div><div class="liquid liquid-b"></div><div class="grid-glow"></div>
+  <main class="login-wrap">
+    <div class="login-brand"><span class="login-brand-mark">◒</span><span>AURORA · DJ STUDIO</span></div>
+    <section class="login-card" aria-labelledby="loginTitle">
+      <span class="login-kicker">ACCOUNT ACCESS</span>
+      <h1 id="loginTitle">Entre para continuar</h1>
+      <p>Use sua conta Google para abrir seu workspace de áudio. Depois da autenticação, você volta automaticamente para o Studio.</p>
+      <button class="login-google" id="googleRedirect" type="button"><span class="google-logo">G</span> Continuar com Google</button>
+      <small class="login-note">O Google confirma sua identidade. Não pedimos nem armazenamos sua senha.</small>
+      <div class="login-status" id="loginStatus" role="status"></div>
+    </section>
+    <p class="login-foot">Processamento local · Seus arquivos de áudio permanecem no dispositivo.</p>
+  </main>
+  <script src="config.js?v=20260904-redirect"></script>
+  <script>
+    const status = document.getElementById('loginStatus');
+    document.getElementById('googleRedirect').addEventListener('click', () => {
+      const clientId = String(window.DJ_CONFIG?.googleClientId || '').trim();
+      if (!clientId) { status.textContent = 'Configure o Client ID público no arquivo config.js.'; return; }
+      const state = (window.crypto?.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
+      localStorage.setItem('aurora-oauth-state', state);
+      status.textContent = 'Abrindo o Google…';
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: window.location.origin + '/auth-callback.html',
+        response_type: 'token',
+        scope: 'openid email profile',
+        include_granted_scopes: 'true',
+        prompt: 'select_account',
+        state
+      });
+      window.location.assign('https://accounts.google.com/o/oauth2/v2/auth?' + params.toString());
+    });
+  </script>
+</body>
+</html>
