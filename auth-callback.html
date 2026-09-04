@@ -49,7 +49,7 @@
         return;
       }
       try {
-        const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {headers: {Authorization: 'Bearer ' + token}});
+        const controller = new AbortController();\n        const timeout = setTimeout(() => controller.abort(), 8000);\n        const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {headers: {Authorization: 'Bearer ' + token}, signal: controller.signal});\n        clearTimeout(timeout);
         if (!response.ok) throw new Error('userinfo');
         const profile = await response.json();
         if (!profile.email) throw new Error('email');
@@ -61,7 +61,7 @@
       } catch (_) {
         spinner.style.display = 'none';
         title.textContent = 'Não foi possível validar a conta';
-        message.textContent = 'O Google respondeu, mas a confirmação demorou. Tente novamente em alguns segundos.';
+        message.textContent = 'A confirmação do Google demorou ou foi bloqueada. Verifique a URI de redirecionamento no Google Cloud e tente novamente.';
         message.classList.add('callback-error');
         const link = document.createElement('a'); link.className = 'callback-link'; link.href = '/login.html'; link.textContent = 'Tentar novamente'; document.querySelector('.callback-card').appendChild(link);
       }
