@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#070a0f">
+  <meta name="description" content="AURORA DJ Studio — mixer, visualizador e exportação de áudio no navegador.">
+  <title>AURORA DJ Studio</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="liquid liquid-a"></div><div class="liquid liquid-b"></div><div class="grid-glow"></div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><span class="brand-mark">◒</span><span><strong>AURORA</strong><small>DJ STUDIO</small></span></div>
+      <button class="close-menu" id="closeMenu" aria-label="Fechar menu">×</button>
+      <nav class="nav" aria-label="Navegação principal">
+        <p class="nav-label">WORKSPACE</p>
+        <button class="nav-item active" data-section="studio"><span>◈</span> Studio</button>
+        <button class="nav-item" data-section="library"><span>▤</span> Biblioteca</button>
+        <button class="nav-item" data-section="visualizers"><span>◌</span> Visualizadores</button>
+        <p class="nav-label">TOOLS</p>
+        <button class="nav-item" data-section="mixer"><span>◒</span> Mixer</button>
+        <button class="nav-item" data-section="presets"><span>✦</span> Presets</button>
+        <button class="nav-item" data-section="exports"><span>↗</span> Exportações</button>
+        <p class="nav-label">ACCOUNT</p>
+        <button class="nav-item" data-section="settings"><span>⚙</span> Configurações</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="plan-card"><span class="plan-dot"></span><div><b>Plano Free</b><small id="planSummary">2 uploads · 2 exports</small></div><span class="chevron">›</span></div>
+        <button class="login-link" id="googleLogin"><span class="google-g">G</span> Entrar com Google</button>
+      </div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <button class="menu-toggle" id="menuToggle" aria-label="Abrir menu">☰</button>
+        <div class="crumb"><span class="live-dot"></span><span>LOCAL WORKSPACE</span><b>/</b><strong id="sectionTitle">Studio</strong></div>
+        <div class="top-actions"><span class="secured">● Processamento local</span><button class="avatar" id="avatar" aria-label="Conta">A</button></div>
+      </header>
+      <div class="content">
+        <section class="welcome-row">
+          <div><p class="eyebrow">AUDIO VISUAL WORKSPACE</p><h1>Shape your <em>sound.</em></h1><p class="subtitle">Crie visualizações envolventes, ajuste o som e exporte sua faixa em um único espaço.</p></div>
+          <div class="quota"><div><span>FREE PLAN</span><b id="quotaText">2 / 2 uploads</b></div><div class="quota-bar"><i id="quotaBar"></i></div><small>Limites renovados no próximo ciclo</small></div>
+        </section>
+        <section class="studio-grid" id="studioSection">
+          <div class="panel import-panel">
+            <div class="panel-heading"><div><span class="kicker">01 · SOURCE</span><h2>Importar áudio</h2></div><span class="status-chip">LOCAL</span></div>
+            <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Selecionar arquivo de áudio">
+              <div class="drop-icon">↑</div><strong>Solte seu áudio aqui</strong><span>ou escolha um arquivo do dispositivo</span><button class="outline-btn" id="chooseFile" type="button">Selecionar arquivo</button><small>MP3, WAV, OGG · até 100 MB</small>
+              <input id="fileInput" type="file" accept="audio/*" hidden>
+            </div>
+            <div class="track-info empty" id="trackInfo"><div class="track-art">♪</div><div><b>Nenhuma faixa carregada</b><small>Seu áudio fica somente neste dispositivo</small></div><span class="track-time">—</span></div>
+            <audio id="audio" controls preload="metadata"></audio>
+          </div>
+          <div class="panel visual-panel">
+            <div class="panel-heading"><div><span class="kicker">02 · VISUALIZER</span><h2>Live spectrum</h2></div><div class="visual-tools"><button class="tiny active" data-visual="bars">Barras</button><button class="tiny" data-visual="orbit">Órbita</button><button class="tiny" data-visual="wave">Onda</button></div></div>
+            <div class="canvas-wrap"><canvas id="visualizer" aria-label="Visualizador de frequência"></canvas><div class="canvas-overlay"><span id="visualStatus">Aguardando áudio</span><span class="fps">60 FPS</span></div></div>
+            <div class="now-playing"><div class="mini-cover">◒</div><div class="now-copy"><b id="nowTitle">Nenhuma faixa selecionada</b><small id="nowMeta">Importe um áudio para começar</small></div><button class="play-btn" id="playBtn" type="button" aria-label="Reproduzir">▶</button></div>
+          </div>
+          <div class="panel mixer-panel">
+            <div class="panel-heading"><div><span class="kicker">03 · MIXER</span><h2>Sound controls</h2></div><button class="reset-btn" id="resetControls">Reset</button></div>
+            <div class="control"><div class="control-label"><span>Graves</span><b id="bassValue">+0 dB</b></div><input id="bass" type="range" min="-12" max="12" value="0"><div class="range-hints"><span>-12</span><span>0</span><span>+12</span></div></div>
+            <div class="control"><div class="control-label"><span>Agudos</span><b id="trebleValue">+0 dB</b></div><input id="treble" type="range" min="-12" max="12" value="0"><div class="range-hints"><span>-12</span><span>0</span><span>+12</span></div></div>
+            <div class="control"><div class="control-label"><span>Sensibilidade</span><b id="sensitivityValue">70%</b></div><input id="sensitivity" type="range" min="20" max="140" value="70"><div class="range-hints"><span>Suave</span><span>Intenso</span></div></div>
+            <div class="control"><div class="control-label"><span>Suavização</span><b id="smoothValue">70%</b></div><input id="smooth" type="range" min="0" max="95" value="70"><div class="range-hints"><span>Rápida</span><span>Fluida</span></div></div>
+            <div class="mixer-footer"><span><i class="signal"></i> Audio engine ready</span><button class="ghost-btn" id="muteBtn">Mute</button></div>
+          </div>
+        </section>
+        <section class="bottom-grid">
+          <div class="panel queue-panel"><div class="panel-heading"><div><span class="kicker">QUEUE</span><h2>Sua sessão</h2></div><button class="text-btn" id="clearSession">Limpar</button></div><div id="queue" class="queue-empty"><span>◌</span><p>Suas faixas aparecem aqui<br><small>Importe um áudio para montar sua sessão.</small></p></div></div>
+          <div class="panel export-panel"><div class="panel-heading"><div><span class="kicker">DELIVERY</span><h2>Exportar resultado</h2></div><span class="export-count" id="exportCount">0 / 2</span></div><p>Exporte o áudio com os ajustes do mixer aplicados. O arquivo é processado localmente.</p><button class="primary-btn" id="exportBtn" disabled><span>↗</span> Exportar áudio <b>⌘ E</b></button><small class="privacy-note">O modo Free permite 2 exportações.</small></div>
+        </section>
+        <section class="info-strip"><span class="info-icon">i</span><p><b>Privacidade por padrão.</b> Seus arquivos não saem do navegador. APIs de login e recursos extras podem ser conectados depois.</p><button class="text-btn" id="learnMore">Como funciona ›</button></section>
+      </div>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+  <div class="modal-backdrop" id="loginModal" hidden><div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle"><button class="modal-close" id="closeModal" aria-label="Fechar">×</button><span class="kicker">ACCOUNT ACCESS</span><h2 id="loginTitle">Entrar com Google</h2><p>A autenticação está preparada para receber sua API do Google. Nenhuma senha é solicitada aqui.</p><button class="google-btn" id="connectGoogle"><span class="google-g">G</span> Continuar com Google</button><small id="loginStatus">Adicione o Client ID no arquivo de configuração para ativar.</small></div></div>
+  <script src="config.js"></script><script src="app.js"></script>
+</body>
+</html>
