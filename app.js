@@ -237,7 +237,7 @@
     document.querySelectorAll('[data-visual]').forEach(btn => btn.onclick = () => { state.visual = btn.dataset.visual; document.querySelectorAll('[data-visual]').forEach(x => x.classList.toggle('active', x === btn)); });
     document.querySelectorAll('.nav-item').forEach(item => item.onclick = () => { showSection(item.dataset.section); $('#sidebar').classList.remove('open'); });
     $('#menuToggle').onclick = () => $('#sidebar').classList.add('open'); $('#closeMenu').onclick = () => $('#sidebar').classList.remove('open');
-    $('#googleLogin').onclick = openLogin; $('#avatar').onclick = openLogin; $('#closeModal').onclick = closeLogin; $('#loginModal').onclick = e => { if (e.target.id === 'loginModal') closeLogin(); };
+    $('#googleLogin').onclick = (event) => { event.preventDefault(); window.location.assign('/login.html'); }; $('#avatar').onclick = () => window.location.assign('/login.html'); $('#closeModal').onclick = closeLogin; $('#loginModal').onclick = e => { if (e.target.id === 'loginModal') closeLogin(); };
     $('#connectGoogle').onclick = () => {
       const status = $('#loginStatus');
       const clientId = String(window.DJ_CONFIG?.googleClientId || '').trim();
