@@ -10,7 +10,7 @@
     (() => {
       const path = window.location.pathname;
       const isApp = path === '/' || path.endsWith('/index.html');
-      const signedIn = localStorage.getItem('aurora-google-email');
+      const signedIn = localStorage.getItem('aurora-auth-v2') === '1' && localStorage.getItem('aurora-google-email');
       if (isApp && !signedIn) window.location.replace('/login.html');
     })();
   </script>
