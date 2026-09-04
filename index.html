@@ -10,7 +10,7 @@
     (() => {
       const path = window.location.pathname;
       const isApp = path === '/' || path.endsWith('/index.html');
-      const signedIn = localStorage.getItem('aurora-auth-v2') === '1' && localStorage.getItem('aurora-google-email');
+      const signedIn = localStorage.getItem('aurora-auth-v3') === '1' && localStorage.getItem('aurora-google-email');
       if (isApp && !signedIn) window.location.replace('/login.html');
     })();
   </script>
@@ -83,7 +83,6 @@
     </main>
   </div>
   <div class="toast" id="toast" role="status"></div>
-  <div class="modal-backdrop" id="loginModal" hidden><div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle"><button class="modal-close" id="closeModal" aria-label="Fechar">×</button><span class="kicker">ACCOUNT ACCESS</span><h2 id="loginTitle">Entrar com Google</h2><p>A autenticação está preparada para receber sua API do Google. Nenhuma senha é solicitada aqui.</p><button class="google-btn" id="connectGoogle"><span class="google-g">G</span> Continuar com Google</button><small id="loginStatus">Você será redirecionado para o login do Google.</small></div></div>
-  <script src="config.js?v=20260904-redirect"></script><script src="app.js?v=20260904-final-login"></script>
+  <script src="config.js?v=20260904-redirect"></script><script src="app.js?v=20260904-login-v3"></script>
 </body>
 </html>
