@@ -5,7 +5,8 @@
   const ctx2d = canvas.getContext('2d');
   const storage = {
     uploads: 'aurora-free-uploads',
-    exports: 'aurora-free-exports'
+    exports: 'aurora-free-exports',
+    exportHistory: 'aurora-export-history'
   };
   const state = {
     uploads: Number(localStorage.getItem(storage.uploads) || 0),
@@ -27,7 +28,8 @@
     accent: '#5be6ed',
     backgroundImage: null,
     backgroundVideo: null,
-    backgroundUrl: ''
+    backgroundUrl: '',
+    exportHistory: (() => { try { return JSON.parse(localStorage.getItem('aurora-export-history') || '[]'); } catch { return []; } })()
   };
   const maxUploads = 2;
   const maxExports = 2;
@@ -59,6 +61,7 @@
   function saveCounters() {
     localStorage.setItem(storage.uploads, String(state.uploads));
     localStorage.setItem(storage.exports, String(state.exports));
+    localStorage.setItem(storage.exportHistory, JSON.stringify(state.exportHistory));
   }
   function updateExportButton() {
     const button = $('#exportBtn');
@@ -232,6 +235,24 @@
     link.href = url; link.download = name; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  function renderExportHistory() {
+    const node = $('#exportHistory');
+    if (!node) return;
+    if (!state.exportHistory.length) {
+      node.innerHTML = '<span class="history-empty">Nenhuma exportação nesta sessão.</span>';
+      return;
+    }
+    node.innerHTML = state.exportHistory.slice().reverse().map(item => {
+      const time = new Date(item.time).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+      return '<div class="history-item"><span class="history-icon">↗</span><span><b>' + escapeHtml(item.name) + '</b><small>' + escapeHtml(item.type.toUpperCase()) + ' · ' + time + '</small></span></div>';
+    }).join('');
+  }
+  function rememberExport(type) {
+    state.exportHistory.push({name: state.fileName || 'visualização', type, time: Date.now()});
+    state.exportHistory = state.exportHistory.slice(-8);
+    saveCounters();
+    renderExportHistory();
+  }
   function toInt16(channel) {
     const output = new Int16Array(channel.length);
     for (let i = 0; i < channel.length; i++) output[i] = Math.max(-1, Math.min(1, channel[i])) * 32767;
@@ -311,7 +332,7 @@
       setupAudioGraph();
       if (state.exportFormat === 'mp3') await exportMp3();
       else await exportVideo(state.exportFormat);
-      state.exports += 1; saveCounters(); updateQuota(); toast('Exportação concluída.');
+      state.exports += 1; rememberExport(state.exportFormat); updateQuota(); toast('Exportação concluída.');
     } catch (error) {
       const message = error.message === 'mp4-unsupported'
         ? 'MP4 não é compatível neste navegador. Escolha WebM ou use outro navegador.'
@@ -334,7 +355,7 @@
     state.backgroundUrl = URL.createObjectURL(file);
     state.backgroundVideo = null;
     const image = new Image();
-    image.onload = () => { state.backgroundImage = image; updateBackgroundLabel('Imagem de fundo ativa · ' + file.name); toast('Imagem de fundo adicionada.'); };
+    image.onload = () => { state.backgroundImage = image; const preview = $('#bgVideoPreview'); if (preview) { preview.pause(); preview.removeAttribute('src'); preview.hidden = true; } updateBackgroundLabel('Imagem de fundo ativa · ' + file.name); toast('Imagem de fundo adicionada.'); };
     image.src = state.backgroundUrl;
   }
   function setBackgroundVideo(file) {
@@ -344,7 +365,7 @@
     state.backgroundUrl = URL.createObjectURL(file);
     const video = document.createElement('video');
     video.src = state.backgroundUrl; video.muted = true; video.loop = true; video.playsInline = true; video.preload = 'auto';
-    video.addEventListener('loadeddata', () => { state.backgroundVideo = video; state.backgroundImage = null; video.play().catch(() => {}); updateBackgroundLabel('Vídeo de fundo ativo · ' + file.name); toast('Vídeo de fundo adicionado.'); });
+    video.addEventListener('loadeddata', () => { state.backgroundVideo = video; state.backgroundImage = null; video.play().catch(() => {}); const preview = $('#bgVideoPreview'); if (preview) { preview.src = state.backgroundUrl; preview.hidden = false; preview.load(); } updateBackgroundLabel('Vídeo de fundo ativo · ' + file.name); toast('Vídeo de fundo adicionado.'); });
     video.load();
   }
   function applyVisualStyle(style) {
@@ -448,5 +469,5 @@
   }
   const savedEmail = localStorage.getItem('aurora-google-email');
   if (savedEmail) $('#avatar').textContent = savedEmail.charAt(0).toUpperCase();
-  updateExportButton(); updateQuota(); setupEvents(); resizeCanvas(); drawVisualizer();
+  updateExportButton(); updateQuota(); renderExportHistory(); setupEvents(); resizeCanvas(); drawVisualizer();
 })();
