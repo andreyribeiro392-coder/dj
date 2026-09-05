@@ -302,6 +302,39 @@
       updateQuota();
     }
   }
+  function updateBackgroundLabel(text) {
+    const node = $('#backgroundInfo');
+    if (node) node.textContent = text;
+  }
+  function setBackgroundImage(file) {
+    if (!file || !file.type.startsWith('image/')) { toast('Escolha uma imagem válida.'); return; }
+    if (state.backgroundUrl) URL.revokeObjectURL(state.backgroundUrl);
+    state.backgroundUrl = URL.createObjectURL(file);
+    state.backgroundVideo = null;
+    const image = new Image();
+    image.onload = () => { state.backgroundImage = image; updateBackgroundLabel('Imagem de fundo ativa · ' + file.name); toast('Imagem de fundo adicionada.'); };
+    image.src = state.backgroundUrl;
+  }
+  function setBackgroundVideo(file) {
+    if (!file || !file.type.startsWith('video/')) { toast('Escolha um vídeo válido.'); return; }
+    if (file.size > 100 * 1024 * 1024) { toast('O vídeo de fundo ultrapassa 100 MB.'); return; }
+    if (state.backgroundUrl) URL.revokeObjectURL(state.backgroundUrl);
+    state.backgroundUrl = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.src = state.backgroundUrl; video.muted = true; video.loop = true; video.playsInline = true; video.preload = 'auto';
+    video.addEventListener('loadeddata', () => { state.backgroundVideo = video; state.backgroundImage = null; video.play().catch(() => {}); updateBackgroundLabel('Vídeo de fundo ativo · ' + file.name); toast('Vídeo de fundo adicionado.'); });
+    video.load();
+  }
+  function applyVisualStyle(style) {
+    if (!stylePresets[style]) return;
+    state.style = style;
+    state.accent = stylePresets[style].primary;
+    const picker = $('#accentColor');
+    if (picker) picker.value = state.accent;
+    document.documentElement.style.setProperty('--accent', state.accent);
+    document.querySelectorAll('.style-chip').forEach(button => button.classList.toggle('active', button.dataset.style === style));
+    toast('Estilo ' + style + ' aplicado.');
+  }
   function renderDirectory(section) {
     const data = sectionData[section];
     const view = document.createElement('section');
@@ -362,6 +395,30 @@
     $('#clearSession').onclick = () => { if (state.objectUrl) URL.revokeObjectURL(state.objectUrl); state.objectUrl=''; state.fileName=''; audio.removeAttribute('src'); audio.load(); $('#trackInfo').classList.add('empty'); $('#trackInfo').innerHTML='<div class="track-art">♪</div><div><b>Nenhuma faixa carregada</b><small>Seu áudio fica somente neste dispositivo</small></div><span class="track-time">—</span>'; $('#nowTitle').textContent='Nenhuma faixa selecionada'; $('#nowMeta').textContent='Importe um áudio para começar'; updateQuota(); toast('Sessão limpa.'); };
     $('#learnMore').onclick = () => toast('O áudio é analisado localmente com a Web Audio API.');
     document.addEventListener('pointermove', event => { state.pointer.x = event.clientX / window.innerWidth; state.pointer.y = event.clientY / window.innerHeight; document.documentElement.style.setProperty('--mx', state.pointer.x); document.documentElement.style.setProperty('--my', state.pointer.y); $('.liquid-a').style.transform = 'translate(' + ((state.pointer.x - .5) * 90) + 'px,' + ((state.pointer.y - .5) * 70) + 'px)'; $('.liquid-b').style.transform = 'translate(' + ((.5 - state.pointer.x) * 80) + 'px,' + ((.5 - state.pointer.y) * 60) + 'px)'; });
+    const orientationSelect = $('#orientationSelect');
+    if (orientationSelect) orientationSelect.onchange = event => {
+      state.orientation = event.target.value;
+      $('#canvasWrap')?.classList.toggle('landscape', state.orientation === 'landscape');
+      resizeCanvas();
+    };
+    const formatSelect = $('#exportFormat');
+    if (formatSelect) formatSelect.onchange = event => {
+      state.exportFormat = event.target.value;
+      const button = $('#exportBtn');
+      if (button) button.textContent = state.exportFormat === 'mp3' ? '♪ Exportar MP3' : state.exportFormat === 'mp4' ? '▣ Exportar MP4' : '↗ Exportar WebM';
+    };
+    const imageInput = $('#bgImageInput');
+    if (imageInput) imageInput.onchange = event => setBackgroundImage(event.target.files[0]);
+    const videoInput = $('#bgVideoInput');
+    if (videoInput) videoInput.onchange = event => setBackgroundVideo(event.target.files[0]);
+    document.querySelectorAll('.style-chip').forEach(button => button.onclick = () => applyVisualStyle(button.dataset.style));
+    const accentPicker = $('#accentColor');
+    if (accentPicker) accentPicker.oninput = event => {
+      state.accent = event.target.value;
+      document.documentElement.style.setProperty('--accent', state.accent);
+      state.style = 'custom';
+      document.querySelectorAll('.style-chip').forEach(button => button.classList.remove('active'));
+    });
     window.addEventListener('resize', resizeCanvas);
     document.addEventListener('keydown', event => { if (event.code === 'Space' && !/input|textarea|select/i.test(document.activeElement.tagName)) { event.preventDefault(); togglePlay(); } if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'e') { event.preventDefault(); exportAudio(); } if (event.key === 'Escape') closeLogin(); });
   }
