@@ -192,7 +192,7 @@
       const g = ctx2d.createLinearGradient(0, base - height, 0, base);
       g.addColorStop(0, palette.highlight); g.addColorStop(.5, palette.primary); g.addColorStop(1, palette.secondary);
       ctx2d.fillStyle = g; ctx2d.globalAlpha = .35 + value * .65;
-      ctx2d.beginPath(); ctx2d.roundRect(x, base - height, width, height, 4); ctx2d.fill();
+      ctx2d.fillRect(x, base - height, width, height);
     }
     ctx2d.globalAlpha = 1;
     ctx2d.strokeStyle = '#5be6ed28'; ctx2d.lineWidth = 1; ctx2d.beginPath(); ctx2d.moveTo(20, base + 1); ctx2d.lineTo(w - 20, base + 1); ctx2d.stroke();
@@ -399,6 +399,8 @@
     $('#learnMore').onclick = () => toast('O áudio é analisado localmente com a Web Audio API.');
     document.addEventListener('pointermove', event => { state.pointer.x = event.clientX / window.innerWidth; state.pointer.y = event.clientY / window.innerHeight; document.documentElement.style.setProperty('--mx', state.pointer.x); document.documentElement.style.setProperty('--my', state.pointer.y); $('.liquid-a').style.transform = 'translate(' + ((state.pointer.x - .5) * 90) + 'px,' + ((state.pointer.y - .5) * 70) + 'px)'; $('.liquid-b').style.transform = 'translate(' + ((.5 - state.pointer.x) * 80) + 'px,' + ((.5 - state.pointer.y) * 60) + 'px)'; });
     const orientationSelect = $('#orientationSelect');
+    const canvasWrap = $('#canvasWrap');
+    if (canvasWrap) canvasWrap.classList.toggle('landscape', state.orientation === 'landscape');
     if (orientationSelect) orientationSelect.onchange = event => {
       state.orientation = event.target.value;
       $('#canvasWrap')?.classList.toggle('landscape', state.orientation === 'landscape');
