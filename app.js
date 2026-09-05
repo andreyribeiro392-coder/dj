@@ -646,9 +646,13 @@
     view.querySelectorAll('[data-action="mixer"]').forEach(button => button.onclick = () => { showSection('studio'); document.querySelector('.mixer-panel')?.scrollIntoView({behavior:'smooth',block:'center'}); });
     view.querySelectorAll('[data-action="settings"]').forEach(button => button.onclick = () => { showSection('studio'); document.querySelector('#compositionPanel')?.scrollIntoView({behavior:'smooth',block:'center'}); toast('Preferências abertas no Studio.'); });
   }
-  function showSection(section) {
-    document.querySelectorAll('.nav-item').forEach(item => { const active = item.dataset.section === section; item.classList.toggle('active', active); item.setAttribute('aria-current', active ? 'page' : 'false'); });
+  function showSection(section, options = {}) {
     if (!sectionData[section] && section !== 'studio') section = 'studio';
+    if (!options.fromHash) {
+      const nextHash = '#' + section;
+      if (window.location.hash !== nextHash) history.pushState({section}, '', nextHash);
+    }
+    document.querySelectorAll('.nav-item').forEach(item => { const active = item.dataset.section === section; item.classList.toggle('active', active); item.setAttribute('aria-current', active ? 'page' : 'false'); });
     $('#sectionTitle').textContent = section === 'studio' ? 'Studio' : sectionData[section].title;
     const studio = $('#studioSection'), bottom = document.querySelector('.bottom-grid'), info = document.querySelector('.info-strip');
     let view = $('#directoryView');
@@ -741,6 +745,10 @@
       document.querySelectorAll('.style-chip').forEach(button => button.classList.remove('active'));
     };
     window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('popstate', () => showSection(window.location.hash.slice(1) || 'studio', {fromHash:true}));
+    window.addEventListener('hashchange', () => showSection(window.location.hash.slice(1) || 'studio', {fromHash:true}));
+    const initialSection = window.location.hash.slice(1);
+    if (initialSection) showSection(initialSection, {fromHash:true});
     document.addEventListener('keydown', event => { if (event.code === 'Space' && !/input|textarea|select/i.test(document.activeElement.tagName)) { event.preventDefault(); togglePlay(); } if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'e') { event.preventDefault(); exportAudio(); } if (event.key === 'Escape') closeLogin(); });
   }
   const savedEmail = localStorage.getItem('aurora-google-email');
