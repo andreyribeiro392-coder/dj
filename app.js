@@ -838,6 +838,13 @@
       updateQuota(); updateExportButton(); toast('Sessão limpa.'); 
     };
     $('#learnMore').onclick = () => toast('O áudio é analisado localmente com a Web Audio API.');
+    const quickImport = $('#quickImport');
+    if (quickImport) quickImport.onclick = () => $('#fileInput')?.click();
+    const quickScene = $('#quickScene');
+    if (quickScene) quickScene.onclick = () => {
+      $('#compositionPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      toast('Editor de cena aberto.');
+    };
     document.addEventListener('pointermove', event => { state.pointer.x = event.clientX / window.innerWidth; state.pointer.y = event.clientY / window.innerHeight; document.documentElement.style.setProperty('--mx', state.pointer.x); document.documentElement.style.setProperty('--my', state.pointer.y); $('.liquid-a').style.transform = 'translate(' + ((state.pointer.x - .5) * 90) + 'px,' + ((state.pointer.y - .5) * 70) + 'px)'; $('.liquid-b').style.transform = 'translate(' + ((.5 - state.pointer.x) * 80) + 'px,' + ((.5 - state.pointer.y) * 60) + 'px)'; });
     const orientationSelect = $('#orientationSelect');
     const canvasWrap = $('#canvasWrap');
