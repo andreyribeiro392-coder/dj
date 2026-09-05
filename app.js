@@ -31,7 +31,26 @@
     backgroundUrl: '',
     exportHistory: (() => { try { return JSON.parse(localStorage.getItem('aurora-export-history') || '[]'); } catch { return []; } })(),
     lastExportUrl: '',
-    isAdmin: false
+    isAdmin: false,
+    fileBlob: null,
+    fileKey: '',
+    barCount: Number(localStorage.getItem('aurora-bar-count') || 96),
+    visualIntensity: Number(localStorage.getItem('aurora-visual-intensity') || 100) / 100,
+    visualRotation: Number(localStorage.getItem('aurora-visual-rotation') || 0),
+    visualOpacity: Number(localStorage.getItem('aurora-visual-opacity') || 100) / 100,
+    barPlacement: localStorage.getItem('aurora-bar-placement') || 'outside',
+    backgroundFit: localStorage.getItem('aurora-bg-fit') || 'contain',
+    bgOpacity: Number(localStorage.getItem('aurora-bg-opacity') || 100) / 100,
+    bgZoom: Number(localStorage.getItem('aurora-bg-zoom') || 100) / 100,
+    bgX: Number(localStorage.getItem('aurora-bg-x') || 0),
+    bgY: Number(localStorage.getItem('aurora-bg-y') || 0),
+    bgBrightness: Number(localStorage.getItem('aurora-bg-brightness') || 100),
+    bgContrast: Number(localStorage.getItem('aurora-bg-contrast') || 100),
+    bgBlur: Number(localStorage.getItem('aurora-bg-blur') || 0),
+    visualLayer: localStorage.getItem('aurora-visual-layer') || 'front',
+    exportName: localStorage.getItem('aurora-export-name') || '',
+    currentRecorder: null,
+    exportCancelled: false
   };
   const maxUploads = 2;
   const maxExports = 2;
@@ -65,6 +84,52 @@
     localStorage.setItem(storage.exports, String(state.exports));
     localStorage.setItem(storage.exportHistory, JSON.stringify(state.exportHistory));
   }
+  const dbPromise = (() => {
+    if (!window.indexedDB) return Promise.resolve(null);
+    return new Promise(resolve => {
+      const request = indexedDB.open('aurora-dj-workspace', 1);
+      request.onupgradeneeded = () => request.result.createObjectStore('workspace');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    });
+  })();
+  function dbPut(key, value) {
+    return dbPromise.then(db => new Promise(resolve => {
+      if (!db) return resolve(false);
+      const tx = db.transaction('workspace', 'readwrite');
+      tx.objectStore('workspace').put(value, key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    }));
+  }
+  function dbGet(key) {
+    return dbPromise.then(db => new Promise(resolve => {
+      if (!db) return resolve(null);
+      const request = db.transaction('workspace').objectStore('workspace').get(key);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => resolve(null);
+    }));
+  }
+  function persistSession() {
+    if (!state.fileBlob) return Promise.resolve(false);
+    return dbPut('session', {audio: state.fileBlob, name: state.fileName, type: state.fileBlob.type, key: state.fileKey});
+  }
+  async function restoreSession() {
+    const record = await dbGet('session');
+    if (!record || !record.audio || !record.name) return;
+    try {
+      const file = typeof File === 'function' ? new File([record.audio], record.name, {type: record.type || 'audio/mpeg'}) : record.audio;
+      if (!file.name) file.name = record.name;
+      loadFile(file, {restored: true});
+      toast('Sessão restaurada neste dispositivo.');
+    } catch (_) {}
+  }
+  function setBusy(node, busy, label) {
+    if (!node) return;
+    node.classList.toggle('is-loading', busy);
+    node.setAttribute('aria-busy', busy ? 'true' : 'false');
+    if (label) node.setAttribute('data-loading-label', label);
+  }
   function updateExportButton() {
     const button = $('#exportBtn');
     if (!button) return;
@@ -97,21 +162,28 @@
     state.analyser.connect(state.audioContext.destination);
     state.analyser.connect(state.recordDestination);
   }
-  function loadFile(file) {
-    if (!file || !file.type.startsWith('audio/')) { toast('Escolha um arquivo de áudio válido.'); return; }
-    if (!state.isAdmin && state.uploads >= maxUploads) { toast('Limite Free atingido: 2 uploads.'); return; }
+  function loadFile(file, options = {}) {
+    if (!file || !String(file.type || '').startsWith('audio/')) { toast('Escolha um áudio válido: MP3, WAV ou OGG.'); return; }
     if (file.size > 100 * 1024 * 1024) { toast('Esse arquivo ultrapassa o limite de 100 MB.'); return; }
+    const key = [file.name, file.size, file.lastModified || 0].join('|');
+    if (key === state.fileKey && state.fileName) { toast('Essa faixa já está carregada.'); return; }
+    if (!options.restored && !state.isAdmin && state.uploads >= maxUploads) { toast('Limite Free atingido: 2 uploads.'); return; }
+    setBusy($('#dropzone'), true, 'Carregando áudio…');
     if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
     state.objectUrl = URL.createObjectURL(file);
-    state.fileName = file.name;
-    state.uploads += 1; saveCounters(); updateQuota();
-    audio.src = state.objectUrl; audio.load(); setupAudioGraph();
+    state.fileBlob = file; state.fileKey = key; state.fileName = file.name || 'audio';
+    if (!options.restored) { state.uploads += 1; saveCounters(); updateQuota(); }
+    audio.src = state.objectUrl; audio.load();
+    try { setupAudioGraph(); } catch (_) {}
     $('#trackInfo').classList.remove('empty');
-    $('#trackInfo').innerHTML = '<div class="track-art">♪</div><div><b>' + escapeHtml(file.name) + '</b><small>' + formatSize(file.size) + ' · local</small></div><span class="track-time">—</span>';
-    $('#nowTitle').textContent = file.name;
+    $('#trackInfo').innerHTML = '<div class="track-art">♪</div><div><b>' + escapeHtml(state.fileName) + '</b><small>' + formatSize(file.size) + ' · local</small></div><span class="track-time">—</span>';
+    $('#nowTitle').textContent = state.fileName;
     $('#nowMeta').textContent = formatSize(file.size) + ' · pronto para mixar';
     $('#visualStatus').textContent = 'Faixa carregada';
-    toast('Áudio carregado. Pressione play para iniciar.');
+    audio.addEventListener('loadedmetadata', () => setBusy($('#dropzone'), false), {once:true});
+    persistSession();
+    updateExportButton(); updateQuota();
+    toast(options.restored ? 'Sessão recuperada.' : 'Áudio carregado. Pressione play para iniciar.');
   }
   function escapeHtml(value) {
     return String(value).replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
@@ -142,8 +214,36 @@
     if (id === 'sensitivity') $('#sensitivityValue').textContent = n + '%';
     if (id === 'smooth') $('#smoothValue').textContent = n + '%';
   }
+  function setVisualSetting(id, value) {
+    const n = Number(value);
+    if (id === 'barCount') state.barCount = n;
+    if (id === 'visualIntensity') state.visualIntensity = n / 100;
+    if (id === 'visualRotation') state.visualRotation = n;
+    if (id === 'visualOpacity') state.visualOpacity = n / 100;
+    if (id === 'barPlacement') state.barPlacement = value;
+    localStorage.setItem('aurora-' + id.replace(/[A-Z]/g, m => '-' + m.toLowerCase()), String(value));
+    const labels = {barCount:n, visualIntensity:Math.round(state.visualIntensity*100)+'%', visualRotation:n+'°', visualOpacity:Math.round(state.visualOpacity*100)+'%'};
+    const node = $('#' + id + 'Value'); if (node && labels[id] !== undefined) node.textContent = labels[id];
+  }
+  function setBackgroundSetting(id, value) {
+    const n = Number(value);
+    if (id === 'backgroundFit') state.backgroundFit = value;
+    if (id === 'bgOpacity') state.bgOpacity = n / 100;
+    if (id === 'bgZoom') state.bgZoom = n / 100;
+    if (id === 'bgX') state.bgX = n;
+    if (id === 'bgY') state.bgY = n;
+    if (id === 'bgBrightness') state.bgBrightness = n;
+    if (id === 'bgContrast') state.bgContrast = n;
+    if (id === 'bgBlur') state.bgBlur = n;
+    if (id === 'visualLayer') state.visualLayer = value;
+    localStorage.setItem('aurora-' + id.replace(/[A-Z]/g, m => '-' + m.toLowerCase()), String(value));
+    const labels = {bgOpacity:Math.round(state.bgOpacity*100)+'%', bgZoom:Math.round(state.bgZoom*100)+'%', bgX:n+'%', bgY:n+'%', bgBrightness:n+'%', bgContrast:n+'%', bgBlur:n+'px'};
+    const node = $('#' + id + 'Value'); if (node && labels[id] !== undefined) node.textContent = labels[id];
+  }
   function resetControls() {
     [['bass',0],['treble',0],['sensitivity',70],['smooth',70]].forEach(([id,value]) => { const input = $('#' + id); input.value = value; setControl(id, value); });
+    [['barCount',96],['visualIntensity',100],['visualRotation',0],['visualOpacity',100],['barPlacement','outside']].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setVisualSetting(id, value); } });
+    [['bgOpacity',100],['bgZoom',100],['bgX',0],['bgY',0],['bgBrightness',100],['bgContrast',100],['bgBlur',0],['backgroundFit','contain'],['visualLayer','front']].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setBackgroundSetting(id, value); } });
     toast('Controles restaurados.');
   }
   function resizeCanvas() {
@@ -163,11 +263,18 @@
   function drawMediaContain(media, w, h) {
     const mw = media.videoWidth || media.naturalWidth || 1;
     const mh = media.videoHeight || media.naturalHeight || 1;
-    const scale = Math.min(w / mw, h / mh);
+    const baseScale = state.backgroundFit === 'cover' ? Math.max(w / mw, h / mh) : Math.min(w / mw, h / mh);
+    const scale = baseScale * state.bgZoom;
     const dw = mw * scale, dh = mh * scale;
+    const dx = (w - dw) / 2 + state.bgX / 100 * w * .45;
+    const dy = (h - dh) / 2 + state.bgY / 100 * h * .45;
+    ctx2d.save();
+    ctx2d.globalAlpha = state.bgOpacity;
+    ctx2d.filter = 'brightness(' + state.bgBrightness + '%) contrast(' + state.bgContrast + '%) blur(' + state.bgBlur + 'px)';
     ctx2d.fillStyle = '#03070b';
     ctx2d.fillRect(0, 0, w, h);
-    ctx2d.drawImage(media, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    ctx2d.drawImage(media, dx, dy, dw, dh);
+    ctx2d.restore();
   }
   function drawBackground(w, h) {
     if (state.backgroundVideo && state.backgroundVideo.readyState >= 2) {
@@ -199,62 +306,55 @@
     if (state.analyser) state.analyser.getByteFrequencyData(data);
     const sensitivity = Number($('#sensitivity').value || 70) / 70;
     const average = data.reduce((a,b) => a + b, 0) / Math.max(1, data.length);
+    ctx2d.save();
+    ctx2d.globalAlpha = state.visualOpacity * (state.visualLayer === 'back' ? .42 : 1);
     if (state.visual === 'wave') drawWave(data, w, h, sensitivity);
     else if (state.visual === 'orbit') drawOrbit(data, w, h, sensitivity);
     else drawBars(data, w, h, sensitivity);
+    ctx2d.restore();
     if (state.fileName && !audio.paused) $('#visualStatus').textContent = 'Reproduzindo · ' + Math.round(average) + ' signal';
     requestAnimationFrame(drawVisualizer);
   }
   function drawBars(data, w, h, sensitivity) {
-    // Radial rectangular bars, matching the classic music-visualizer look.
     const palette = currentPalette();
     const cx = w * (.5 + (state.pointer.x - .5) * .035);
     const cy = h * (.5 + (state.pointer.y - .5) * .035);
     const radius = Math.min(w, h) * .19;
     const outer = Math.min(w, h) * .47;
-    const count = 96;
+    const count = Math.max(32, Math.min(128, state.barCount || 96));
     const step = Math.PI * 2 / count;
-    const barWidth = Math.max(2, Math.min(8, radius * step * .62));
+    const barWidth = Math.max(2, Math.min(8, radius * step * .68));
+    const rotation = (state.visualRotation || 0) * Math.PI / 180 - Math.PI / 2;
+    const intensity = Math.min(1.8, Math.max(.35, state.visualIntensity || 1)) * sensitivity;
     const now = performance.now() / 55;
     ctx2d.save();
     ctx2d.globalCompositeOperation = 'lighter';
-
     const aura = ctx2d.createRadialGradient(cx, cy, radius * .65, cx, cy, outer * 1.08);
-    aura.addColorStop(0, palette.primary + '30');
-    aura.addColorStop(.6, palette.secondary + '0b');
-    aura.addColorStop(1, 'transparent');
-    ctx2d.fillStyle = aura;
-    ctx2d.beginPath(); ctx2d.arc(cx, cy, outer, 0, Math.PI * 2); ctx2d.fill();
-
+    aura.addColorStop(0, palette.primary + '30'); aura.addColorStop(.6, palette.secondary + '0b'); aura.addColorStop(1, 'transparent');
+    ctx2d.fillStyle = aura; ctx2d.beginPath(); ctx2d.arc(cx, cy, outer, 0, Math.PI * 2); ctx2d.fill();
     for (let i = 0; i < count; i++) {
-      const index = Math.floor(i * data.length / count);
-      const value = (data[index] || 0) / 255;
-      const level = Math.pow(value, .72);
-      const length = 9 + level * (outer - radius - 9) * Math.min(1.3, sensitivity);
-      const angle = i * step - Math.PI / 2;
+      const value = (data[Math.floor(i * data.length / count)] || 0) / 255;
+      const level = Math.pow(value, .68);
+      const length = 9 + level * (outer - radius - 9) * intensity;
+      const angle = i * step + rotation;
       const inner = radius + 5;
       const hue = (i / count * 360 + now) % 360;
-      const color = state.style === 'mono' ? '#e8fbff' : 'hsl(' + hue + ' 92% ' + (58 + level * 13) + '%)';
+      const color = state.style === 'mono' ? '#e8fbff' : 'hsl(' + hue + ' 92% ' + (57 + level * 15) + '%)';
       ctx2d.save();
       ctx2d.translate(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
       ctx2d.rotate(angle + Math.PI / 2);
-      ctx2d.fillStyle = color;
-      ctx2d.globalAlpha = .48 + level * .52;
-      ctx2d.fillRect(-barWidth / 2, 0, barWidth, length);
+      ctx2d.fillStyle = color; ctx2d.globalAlpha = .48 + level * .52;
+      if (state.barPlacement === 'inside') ctx2d.fillRect(-barWidth / 2, -length, barWidth, length);
+      else if (state.barPlacement === 'both') { const half = length / 2; ctx2d.fillRect(-barWidth / 2, 0, barWidth, half); ctx2d.fillRect(-barWidth / 2, -half, barWidth, half); }
+      else ctx2d.fillRect(-barWidth / 2, 0, barWidth, length);
       ctx2d.restore();
     }
-
     ctx2d.globalCompositeOperation = 'source-over';
     const center = ctx2d.createRadialGradient(cx - radius * .25, cy - radius * .25, 2, cx, cy, radius);
-    center.addColorStop(0, palette.highlight + 'd9');
-    center.addColorStop(.55, palette.primary + 'a8');
-    center.addColorStop(1, palette.secondary + '78');
-    ctx2d.fillStyle = center;
-    ctx2d.globalAlpha = .72;
+    center.addColorStop(0, palette.highlight + '85'); center.addColorStop(.55, palette.primary + '52'); center.addColorStop(1, palette.secondary + '28');
+    ctx2d.fillStyle = center; ctx2d.globalAlpha = .48;
     ctx2d.beginPath(); ctx2d.arc(cx, cy, radius, 0, Math.PI * 2); ctx2d.fill();
-    ctx2d.globalAlpha = 1;
-    ctx2d.strokeStyle = palette.highlight + 'b0';
-    ctx2d.lineWidth = 1.5;
+    ctx2d.globalAlpha = 1; ctx2d.strokeStyle = palette.highlight + 'a8'; ctx2d.lineWidth = 1.5;
     ctx2d.beginPath(); ctx2d.arc(cx, cy, radius + 2, 0, Math.PI * 2); ctx2d.stroke();
     ctx2d.restore();
   }
@@ -321,6 +421,7 @@
   }
   async function exportMp3() {
     if (!window.lamejs) throw new Error('mp3-library');
+    setExportProgress(5, 'Lendo áudio…');
     const response = await fetch(state.objectUrl);
     const buffer = await response.arrayBuffer();
     const decoded = await state.audioContext.decodeAudioData(buffer);
@@ -329,13 +430,9 @@
     if (OfflineAudioContext) {
       const offline = new OfflineAudioContext(decoded.numberOfChannels, decoded.length, decoded.sampleRate);
       const source = offline.createBufferSource();
-      const bass = offline.createBiquadFilter();
-      bass.type = 'lowshelf'; bass.frequency.value = 180; bass.gain.value = Number($('#bass').value || 0);
-      const treble = offline.createBiquadFilter();
-      treble.type = 'highshelf'; treble.frequency.value = 3200; treble.gain.value = Number($('#treble').value || 0);
-      source.buffer = decoded;
-      source.connect(bass).connect(treble).connect(offline.destination);
-      source.start();
+      const bass = offline.createBiquadFilter(); bass.type = 'lowshelf'; bass.frequency.value = 180; bass.gain.value = Number($('#bass').value || 0);
+      const treble = offline.createBiquadFilter(); treble.type = 'highshelf'; treble.frequency.value = 3200; treble.gain.value = Number($('#treble').value || 0);
+      source.buffer = decoded; source.connect(bass).connect(treble).connect(offline.destination); source.start();
       rendered = await offline.startRendering();
     }
     const channels = Math.min(2, rendered.numberOfChannels);
@@ -344,71 +441,68 @@
     const right = channels > 1 ? toInt16(rendered.getChannelData(1)) : left;
     const chunks = [];
     for (let i = 0; i < left.length; i += 1152) {
-      const leftChunk = left.subarray(i, i + 1152);
-      const rightChunk = right.subarray(i, i + 1152);
+      if (state.exportCancelled) throw new Error('cancelled');
+      const leftChunk = left.subarray(i, i + 1152), rightChunk = right.subarray(i, i + 1152);
       const encoded = channels > 1 ? encoder.encodeBuffer(leftChunk, rightChunk) : encoder.encodeBuffer(leftChunk);
       if (encoded.length) chunks.push(new Int8Array(encoded));
+      if (i % (1152 * 24) === 0) setExportProgress(10 + (i / left.length) * 82);
     }
-    const flushed = encoder.flush();
-    if (flushed.length) chunks.push(new Int8Array(flushed));
-    downloadBlob(new Blob(chunks, {type:'audio/mpeg'}), (state.fileName.replace(/\.[^/.]+$/, '') || 'aurora-audio') + '.mp3');
+    const flushed = encoder.flush(); if (flushed.length) chunks.push(new Int8Array(flushed));
+    const blob = new Blob(chunks, {type:'audio/mpeg'});
+    downloadBlob(blob, baseExportName() + '.mp3'); updateExportMeta('MP3', blob); setExportProgress(100, 'Concluído');
   }
   function exportVideo(format) {
     return new Promise((resolve, reject) => {
       if (!canvas.captureStream || !window.MediaRecorder) { reject(new Error('video-unsupported')); return; }
-      const mimeCandidates = format === 'mp4'
-        ? ['video/mp4;codecs="avc1.42E01E,mp4a.40.2"', 'video/mp4']
-        : ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+      const mimeCandidates = format === 'mp4' ? ['video/mp4;codecs="avc1.42E01E,mp4a.40.2"', 'video/mp4'] : ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
       const mime = mimeCandidates.find(type => MediaRecorder.isTypeSupported(type));
       if (!mime) { reject(new Error(format === 'mp4' ? 'mp4-unsupported' : 'video-unsupported')); return; }
       setupAudioGraph();
       const stream = canvas.captureStream(30);
-      state.recordDestination.stream.getAudioTracks().forEach(track => stream.addTrack(track));
+      if (state.recordDestination) state.recordDestination.stream.getAudioTracks().forEach(track => stream.addTrack(track));
       const recorder = new MediaRecorder(stream, {mimeType: mime});
-      const chunks = [];
-      let settled = false;
+      state.currentRecorder = recorder; state.exportCancelled = false;
+      const chunks = []; let settled = false; const started = performance.now();
+      const timer = setInterval(() => {
+        const duration = Number(audio.duration) || 0; const percent = duration ? (audio.currentTime / duration) * 92 : Math.min(90, (performance.now() - started) / 1000);
+        setExportProgress(percent, Math.round(percent) + '%');
+      }, 250);
       const finish = () => { if (recorder.state !== 'inactive') recorder.stop(); };
       recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
-      recorder.onerror = () => { if (!settled) { settled = true; reject(new Error('recording')); } };
+      recorder.onerror = () => { if (!settled) { settled = true; clearInterval(timer); reject(new Error('recording')); } };
       recorder.onstop = () => {
+        clearInterval(timer); state.currentRecorder = null;
         if (settled) return;
-        settled = true;
-        const extension = format === 'mp4' ? 'mp4' : 'webm';
+        if (state.exportCancelled) { settled = true; reject(new Error('cancelled')); return; }
+        settled = true; const extension = format === 'mp4' ? 'mp4' : 'webm';
         const blob = new Blob(chunks, {type:mime});
-        downloadBlob(blob, (state.fileName.replace(/\.[^/.]+$/, '') || 'aurora-video') + '-visual.' + extension);
+        downloadBlob(blob, baseExportName() + '-visual.' + extension);
         if (state.lastExportUrl) URL.revokeObjectURL(state.lastExportUrl);
         state.lastExportUrl = URL.createObjectURL(blob);
-        const preview = $('#exportPreview');
-        if (preview) { preview.src = state.lastExportUrl; preview.hidden = false; preview.load(); }
-        resolve();
+        const preview = $('#exportPreview'); if (preview) { preview.src = state.lastExportUrl; preview.hidden = false; preview.load(); }
+        updateExportMeta(format.toUpperCase(), blob); setExportProgress(100, 'Concluído'); resolve();
       };
       if (state.backgroundVideo) state.backgroundVideo.play().catch(() => {});
-      audio.currentTime = 0;
-      recorder.start(200);
-      audio.play().then(() => audio.addEventListener('ended', finish, {once:true})).catch(() => { finish(); reject(new Error('audio-start')); });
+      audio.currentTime = 0; recorder.start(200);
+      audio.play().then(() => audio.addEventListener('ended', finish, {once:true})).catch(() => { finish(); if (!settled) { settled = true; reject(new Error('audio-start')); } });
     });
   }
   async function exportAudio() {
     if (!state.fileName) { toast('Importe um áudio antes de exportar.'); return; }
     if (!state.isAdmin && state.exports >= maxExports) { toast('Limite Free atingido: 2 exportações.'); return; }
-    const button = $('#exportBtn');
-    button.disabled = true;
-    button.textContent = 'Processando...';
+    const button = $('#exportBtn'), cancel = $('#cancelExportBtn');
+    state.exportCancelled = false; button.disabled = true; button.classList.add('is-loading'); button.setAttribute('aria-busy','true'); button.textContent = 'Processando…';
+    if (cancel) cancel.hidden = false; setExportProgress(2, 'Preparando…');
     try {
       setupAudioGraph();
-      if (state.exportFormat === 'mp3') await exportMp3();
-      else await exportVideo(state.exportFormat);
+      if (state.exportFormat === 'mp3') await exportMp3(); else await exportVideo(state.exportFormat);
+      if (state.exportCancelled) throw new Error('cancelled');
       state.exports += 1; rememberExport(state.exportFormat); updateQuota(); toast('Exportação concluída.');
     } catch (error) {
-      const message = error.message === 'mp4-unsupported'
-        ? 'MP4 não é compatível neste navegador. Escolha WebM ou use outro navegador.'
-        : error.message === 'mp3-library'
-          ? 'O codificador MP3 não carregou. Recarregue a página e tente novamente.'
-          : 'Não foi possível exportar neste navegador.';
+      const message = error.message === 'mp4-unsupported' ? 'MP4 não é compatível neste navegador. Escolha WebM.' : error.message === 'mp3-library' ? 'O codificador MP3 não carregou. Recarregue e tente novamente.' : error.message === 'cancelled' ? 'Exportação cancelada.' : 'Não foi possível exportar. Verifique o formato e tente novamente.';
       toast(message);
     } finally {
-      updateExportButton();
-      updateQuota();
+      state.currentRecorder = null; button.classList.remove('is-loading'); button.removeAttribute('aria-busy'); if (cancel) cancel.hidden = true; hideExportProgress(); updateExportButton(); updateQuota();
     }
   }
   function updateBackgroundLabel(text) {
@@ -416,23 +510,61 @@
     if (node) node.textContent = text;
   }
   function setBackgroundImage(file) {
-    if (!file || !file.type.startsWith('image/')) { toast('Escolha uma imagem válida.'); return; }
+    if (!file || !String(file.type || '').startsWith('image/')) { toast('Escolha uma imagem JPG, PNG ou WEBP.'); return; }
+    if (file.size > 100 * 1024 * 1024) { toast('A imagem ultrapassa 100 MB.'); return; }
     if (state.backgroundUrl) URL.revokeObjectURL(state.backgroundUrl);
-    state.backgroundUrl = URL.createObjectURL(file);
-    state.backgroundVideo = null;
+    state.backgroundUrl = URL.createObjectURL(file); state.backgroundVideo = null;
     const image = new Image();
-    image.onload = () => { state.backgroundImage = image; const preview = $('#bgVideoPreview'); if (preview) { preview.pause(); preview.removeAttribute('src'); preview.hidden = true; } updateBackgroundLabel('Imagem de fundo ativa · ' + file.name); toast('Imagem de fundo adicionada.'); };
+    image.onload = () => {
+      state.backgroundImage = image;
+      const imagePreview = $('#bgImagePreview'); if (imagePreview) { imagePreview.src = state.backgroundUrl; imagePreview.hidden = false; }
+      const preview = $('#bgVideoPreview'); if (preview) { preview.pause(); preview.removeAttribute('src'); preview.hidden = true; }
+      updateBackgroundLabel('Imagem de fundo ativa · ' + file.name); toast('Imagem adicionada e visível no visualizador.');
+    };
+    image.onerror = () => toast('Não foi possível ler essa imagem.');
     image.src = state.backgroundUrl;
   }
   function setBackgroundVideo(file) {
-    if (!file || !file.type.startsWith('video/')) { toast('Escolha um vídeo válido.'); return; }
+    if (!file || !String(file.type || '').startsWith('video/')) { toast('Escolha um vídeo MP4 ou WEBM.'); return; }
     if (file.size > 100 * 1024 * 1024) { toast('O vídeo de fundo ultrapassa 100 MB.'); return; }
     if (state.backgroundUrl) URL.revokeObjectURL(state.backgroundUrl);
-    state.backgroundUrl = URL.createObjectURL(file);
+    state.backgroundUrl = URL.createObjectURL(file); state.backgroundImage = null;
     const video = document.createElement('video');
     video.src = state.backgroundUrl; video.muted = true; video.loop = true; video.playsInline = true; video.preload = 'auto';
-    video.addEventListener('loadeddata', () => { state.backgroundVideo = video; state.backgroundImage = null; video.play().catch(() => {}); const preview = $('#bgVideoPreview'); if (preview) { preview.src = state.backgroundUrl; preview.hidden = false; preview.load(); } updateBackgroundLabel('Vídeo de fundo ativo · ' + file.name); toast('Vídeo de fundo adicionado.'); });
+    setBusy($('#bgVideoInput'), true, 'Preparando vídeo…');
+    video.addEventListener('loadeddata', () => {
+      state.backgroundVideo = video; setBusy($('#bgVideoInput'), false);
+      video.play().catch(() => {});
+      const preview = $('#bgVideoPreview'); if (preview) { preview.src = state.backgroundUrl; preview.hidden = false; preview.load(); }
+      const imagePreview = $('#bgImagePreview'); if (imagePreview) { imagePreview.removeAttribute('src'); imagePreview.hidden = true; }
+      updateBackgroundLabel('Vídeo de fundo ativo · ' + file.name); toast('Vídeo de fundo pronto para exportar.');
+    }, {once:true});
+    video.addEventListener('error', () => { setBusy($('#bgVideoInput'), false); toast('Seu navegador não conseguiu ler este vídeo. Tente MP4 ou WEBM.'); }, {once:true});
     video.load();
+  }
+  function setExportProgress(percent, label) {
+    const value = Math.max(0, Math.min(100, Number(percent) || 0));
+    const wrap = $('#exportProgress'), bar = $('#exportProgressBar'), text = $('#exportProgressText');
+    if (wrap) wrap.hidden = false;
+    if (bar) bar.style.width = value + '%';
+    if (text) text.textContent = label || Math.round(value) + '%';
+  }
+  function hideExportProgress() {
+    const wrap = $('#exportProgress'); if (wrap) wrap.hidden = true;
+  }
+  function baseExportName() {
+    const source = String(state.exportName || $('#exportName')?.value || state.fileName || 'aurora-visual');
+    return source.trim().replace(/\.[^/.]+$/, '').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'aurora-visual';
+  }
+  function updateExportMeta(type, blob) {
+    const node = $('#exportMeta'); if (!node || !blob) return;
+    const orientation = state.orientation === 'portrait' ? '1080×1920' : '1920×1080';
+    node.textContent = type === 'MP3' ? 'MP3 · ' + formatSize(blob.size) : type + ' · ' + orientation + ' · ' + formatSize(blob.size);
+  }
+  function cancelExport() {
+    state.exportCancelled = true;
+    if (state.currentRecorder && state.currentRecorder.state !== 'inactive') state.currentRecorder.stop();
+    else toast('Cancelando exportação…');
   }
   function applyVisualStyle(style) {
     if (!stylePresets[style]) return;
@@ -448,8 +580,28 @@
     const data = sectionData[section];
     const view = document.createElement('section');
     view.className = 'directory-view';
-    view.innerHTML = '<div class="directory-header"><div><p class="eyebrow">' + data.eyebrow + '</p><h1>' + data.title + '</h1><p>' + data.text + '</p></div><span class="status-chip">PREPARADO</span></div><div class="directory-cards">' + data.cards.map(card => '<article class="directory-card"><span class="directory-icon">' + card[2] + '</span><h3>' + card[0] + '</h3><p>' + card[1] + '</p><button class="outline-btn" type="button">Abrir módulo</button></article>').join('') + '</div>';
+    if (section === 'library') {
+      view.innerHTML = '<div class="directory-header"><div><p class="eyebrow">WORKSPACE / BIBLIOTECA</p><h1>Biblioteca</h1><p>Encontre suas faixas salvas neste dispositivo e reabra uma sessão.</p></div><button class="outline-btn" data-action="open-studio" type="button">＋ Importar faixa</button></div><div class="library-toolbar"><input data-library-search type="search" placeholder="Buscar faixa pelo nome…"><span class="library-count">' + (state.fileName ? '1 faixa disponível' : 'Nenhuma faixa') + '</span></div><div class="directory-cards library-list">' + (state.fileName ? '<article class="directory-card library-card"><span class="directory-icon">♫</span><h3>' + escapeHtml(state.fileName) + '</h3><p>' + formatSize(state.fileBlob?.size || 0) + ' · armazenada localmente</p><div class="card-actions"><button class="outline-btn" data-action="open-studio" type="button">Abrir no Studio</button><button class="danger-btn" data-action="clear-session" type="button">Excluir</button></div></article>' : '<div class="directory-empty">Nenhuma faixa salva ainda.<br><small>Importe um áudio no Studio para começar.</small></div>') + '</div>';
+      return view;
+    }
+    if (section === 'exports') {
+      view.innerHTML = '<div class="directory-header"><div><p class="eyebrow">DELIVERY / EXPORTAÇÕES</p><h1>Exportações</h1><p>Histórico das exportações desta sessão.</p></div><button class="outline-btn" data-action="open-studio" type="button">← Voltar ao Studio</button></div><div class="export-directory-list">' + (state.exportHistory.length ? state.exportHistory.slice().reverse().map(item => '<article class="history-item"><span class="history-icon">↗</span><span><b>' + escapeHtml(item.name) + '</b><small>' + escapeHtml(item.type.toUpperCase()) + ' · ' + new Date(item.time).toLocaleString('pt-BR') + '</small></span></article>').join('') : '<div class="directory-empty">Nenhuma exportação nesta sessão.</div>') + '</div>';
+      return view;
+    }
+    view.innerHTML = '<div class="directory-header"><div><p class="eyebrow">' + data.eyebrow + '</p><h1>' + data.title + '</h1><p>' + data.text + '</p></div><button class="outline-btn" data-action="open-studio" type="button">← Voltar ao Studio</button></div><div class="directory-cards">' + data.cards.map((card, index) => '<article class="directory-card"><span class="directory-icon">' + card[2] + '</span><h3>' + card[0] + '</h3><p>' + card[1] + '</p><button class="outline-btn" data-action="' + section + '" data-index="' + index + '" type="button">' + (section === 'presets' ? 'Aplicar preset' : section === 'visualizers' ? 'Usar visual' : section === 'mixer' ? 'Abrir mixer' : 'Abrir no Studio') + '</button></article>').join('') + '</div>';
     return view;
+  }
+  function bindDirectoryActions(view, section) {
+    view.querySelectorAll('[data-action="open-studio"]').forEach(button => button.onclick = () => showSection('studio'));
+    const search = view.querySelector('[data-library-search]');
+    if (search) search.oninput = () => view.querySelectorAll('.library-card').forEach(card => card.hidden = !card.textContent.toLowerCase().includes(search.value.toLowerCase()));
+    view.querySelectorAll('[data-action="clear-session"]').forEach(button => $('#clearSession').click());
+    view.querySelectorAll('[data-action="presets"]').forEach(button => button.onclick = () => {
+      const values = [{bass:5,treble:2,sensitivity:85,smooth:60},{bass:0,treble:4,sensitivity:65,smooth:82},{bass:8,treble:5,sensitivity:120,smooth:45}][Number(button.dataset.index)] || {};
+      Object.entries(values).forEach(([id,value]) => { const input=$('#'+id); if(input){input.value=value;setControl(id,value);} }); showSection('studio'); toast('Preset aplicado.');
+    });
+    view.querySelectorAll('[data-action="visualizers"]').forEach(button => button.onclick = () => { const modes=['bars','orbit','wave']; const mode=modes[Number(button.dataset.index)]||'bars'; state.visual=mode; document.querySelectorAll('[data-visual]').forEach(x=>x.classList.toggle('active',x.dataset.visual===mode)); showSection('studio'); toast('Visual ' + mode + ' selecionado.'); });
+    view.querySelectorAll('[data-action="mixer"]').forEach(button => button.onclick = () => { showSection('studio'); document.querySelector('.mixer-panel')?.scrollIntoView({behavior:'smooth',block:'center'}); });
   }
   function showSection(section) {
     document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.section === section));
@@ -461,7 +613,7 @@
     }
     studio.hidden = true; bottom.hidden = true; info.hidden = true;
     if (!view) { view = document.createElement('div'); view.id = 'directoryView'; $('.content').appendChild(view); }
-    view.innerHTML = ''; view.appendChild(renderDirectory(section));
+    view.innerHTML = ''; view.appendChild(renderDirectory(section)); bindDirectoryActions(view, section);
   }
   function openLogin() { $('#loginModal').hidden = false; $('#loginStatus').textContent = window.DJ_CONFIG?.googleClientId ? 'Você será redirecionado para o login seguro do Google.' : 'Adicione o Client ID no arquivo config.js para ativar.'; }
   function closeLogin() { $('#loginModal').hidden = true; }
@@ -475,10 +627,11 @@
     $('#dropzone').addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
     $('#playBtn').onclick = togglePlay; audio.addEventListener('play', () => $('#playBtn').textContent = 'Ⅱ'); audio.addEventListener('pause', () => $('#playBtn').textContent = '▶');
     audio.addEventListener('loadedmetadata', () => { const time = $('.track-time'); if (time) time.textContent = formatTime(audio.duration); });
-    $('#exportBtn').onclick = exportAudio; $('#resetControls').onclick = resetControls;
+    $('#exportBtn').onclick = exportAudio; $('#cancelExportBtn')?.addEventListener('click', cancelExport); $('#resetControls').onclick = resetControls;
     ['bass','treble','sensitivity','smooth'].forEach(id => $('#' + id).addEventListener('input', e => setControl(id, e.target.value)));
     $('#muteBtn').onclick = () => { state.muted = !state.muted; audio.muted = state.muted; $('#muteBtn').textContent = state.muted ? 'Unmute' : 'Mute'; };
     document.querySelectorAll('[data-visual]').forEach(btn => btn.onclick = () => { state.visual = btn.dataset.visual; document.querySelectorAll('[data-visual]').forEach(x => x.classList.toggle('active', x === btn)); });
+    ['barCount','visualIntensity','visualRotation','visualOpacity','barPlacement'].forEach(id => { const input=$('#'+id); if(input){ input.value = id==='barCount'?state.barCount:id==='visualIntensity'?Math.round(state.visualIntensity*100):id==='visualRotation'?state.visualRotation:id==='visualOpacity'?Math.round(state.visualOpacity*100):state.barPlacement; input.addEventListener('input', e => setVisualSetting(id, e.target.value)); setVisualSetting(id,input.value); } });
     document.querySelectorAll('.nav-item').forEach(item => item.onclick = () => { showSection(item.dataset.section); $('#sidebar').classList.remove('open'); });
     $('#menuToggle').onclick = () => $('#sidebar').classList.add('open'); $('#closeMenu').onclick = () => $('#sidebar').classList.remove('open');
     if ($('#googleLogin')) $('#googleLogin').onclick = (event) => { event.preventDefault(); window.location.assign('/login.html'); }; if ($('#avatar')) $('#avatar').onclick = (event) => { event.preventDefault(); window.location.assign('/login.html'); }; if ($('#closeModal')) $('#closeModal').onclick = closeLogin; $('#loginModal').onclick = e => { if (e.target.id === 'loginModal') closeLogin(); };
@@ -522,6 +675,8 @@
     if (imageInput) imageInput.onchange = event => setBackgroundImage(event.target.files[0]);
     const videoInput = $('#bgVideoInput');
     if (videoInput) videoInput.onchange = event => setBackgroundVideo(event.target.files[0]);
+    ['bgOpacity','bgZoom','bgX','bgY','bgBrightness','bgContrast','bgBlur','backgroundFit','visualLayer'].forEach(id => { const input=$('#'+id); if(input){ input.value = id==='bgOpacity'?Math.round(state.bgOpacity*100):id==='bgZoom'?Math.round(state.bgZoom*100):id==='bgX'?state.bgX:id==='bgY'?state.bgY:id==='bgBrightness'?state.bgBrightness:id==='bgContrast'?state.bgContrast:id==='bgBlur'?state.bgBlur:id==='backgroundFit'?state.backgroundFit:state.visualLayer; input.addEventListener('input', e => setBackgroundSetting(id, e.target.value)); input.addEventListener('change', e => setBackgroundSetting(id, e.target.value)); setBackgroundSetting(id,input.value); } });
+    const exportName = $('#exportName'); if (exportName) { exportName.value = state.exportName; exportName.oninput = e => { state.exportName=e.target.value; localStorage.setItem('aurora-export-name',state.exportName); }; }
     document.querySelectorAll('.style-chip').forEach(button => button.onclick = () => applyVisualStyle(button.dataset.style));
     const accentPicker = $('#accentColor');
     if (accentPicker) accentPicker.oninput = event => {
@@ -535,5 +690,5 @@
   }
   const savedEmail = localStorage.getItem('aurora-google-email');
   if (savedEmail) $('#avatar').textContent = savedEmail.charAt(0).toUpperCase();
-  updateExportButton(); updateQuota(); renderExportHistory(); setupEvents(); checkAdminAccess(); resizeCanvas(); drawVisualizer();
+  updateExportButton(); updateQuota(); renderExportHistory(); setupEvents(); checkAdminAccess(); restoreSession(); resizeCanvas(); drawVisualizer();
 })();
