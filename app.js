@@ -237,10 +237,24 @@
     const response = await fetch(state.objectUrl);
     const buffer = await response.arrayBuffer();
     const decoded = await state.audioContext.decodeAudioData(buffer);
-    const channels = Math.min(2, decoded.numberOfChannels);
-    const encoder = new lamejs.Mp3Encoder(channels, decoded.sampleRate, 128);
-    const left = toInt16(decoded.getChannelData(0));
-    const right = channels > 1 ? toInt16(decoded.getChannelData(1)) : left;
+    let rendered = decoded;
+    const OfflineAudioContext = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (OfflineAudioContext) {
+      const offline = new OfflineAudioContext(decoded.numberOfChannels, decoded.length, decoded.sampleRate);
+      const source = offline.createBufferSource();
+      const bass = offline.createBiquadFilter();
+      bass.type = 'lowshelf'; bass.frequency.value = 180; bass.gain.value = Number($('#bass').value || 0);
+      const treble = offline.createBiquadFilter();
+      treble.type = 'highshelf'; treble.frequency.value = 3200; treble.gain.value = Number($('#treble').value || 0);
+      source.buffer = decoded;
+      source.connect(bass).connect(treble).connect(offline.destination);
+      source.start();
+      rendered = await offline.startRendering();
+    }
+    const channels = Math.min(2, rendered.numberOfChannels);
+    const encoder = new lamejs.Mp3Encoder(channels, rendered.sampleRate, 128);
+    const left = toInt16(rendered.getChannelData(0));
+    const right = channels > 1 ? toInt16(rendered.getChannelData(1)) : left;
     const chunks = [];
     for (let i = 0; i < left.length; i += 1152) {
       const leftChunk = left.subarray(i, i + 1152);
