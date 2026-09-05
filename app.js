@@ -29,7 +29,8 @@
     backgroundImage: null,
     backgroundVideo: null,
     backgroundUrl: '',
-    exportHistory: (() => { try { return JSON.parse(localStorage.getItem('aurora-export-history') || '[]'); } catch { return []; } })()
+    exportHistory: (() => { try { return JSON.parse(localStorage.getItem('aurora-export-history') || '[]'); } catch { return []; } })(),
+    lastExportUrl: ''
   };
   const maxUploads = 2;
   const maxExports = 2;
@@ -313,7 +314,12 @@
         if (settled) return;
         settled = true;
         const extension = format === 'mp4' ? 'mp4' : 'webm';
-        downloadBlob(new Blob(chunks, {type:mime}), (state.fileName.replace(/\.[^/.]+$/, '') || 'aurora-video') + '-visual.' + extension);
+        const blob = new Blob(chunks, {type:mime});
+        downloadBlob(blob, (state.fileName.replace(/\.[^/.]+$/, '') || 'aurora-video') + '-visual.' + extension);
+        if (state.lastExportUrl) URL.revokeObjectURL(state.lastExportUrl);
+        state.lastExportUrl = URL.createObjectURL(blob);
+        const preview = $('#exportPreview');
+        if (preview) { preview.src = state.lastExportUrl; preview.hidden = false; preview.load(); }
         resolve();
       };
       if (state.backgroundVideo) state.backgroundVideo.play().catch(() => {});
