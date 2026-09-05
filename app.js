@@ -60,6 +60,11 @@
     localStorage.setItem(storage.uploads, String(state.uploads));
     localStorage.setItem(storage.exports, String(state.exports));
   }
+  function updateExportButton() {
+    const button = $('#exportBtn');
+    if (!button) return;
+    button.textContent = state.exportFormat === 'mp3' ? '♪ Exportar MP3' : state.exportFormat === 'mp4' ? '▣ Exportar MP4' : '↗ Exportar WebM';
+  }
   function updateQuota() {
     const quota = $('#quotaText');
     const bar = $('#quotaBar');
@@ -315,7 +320,7 @@
           : 'Não foi possível exportar neste navegador.';
       toast(message);
     } finally {
-      button.textContent = '↗ Exportar resultado';
+      updateExportButton();
       updateQuota();
     }
   }
@@ -424,7 +429,7 @@
     if (formatSelect) formatSelect.onchange = event => {
       state.exportFormat = event.target.value;
       const button = $('#exportBtn');
-      if (button) button.textContent = state.exportFormat === 'mp3' ? '♪ Exportar MP3' : state.exportFormat === 'mp4' ? '▣ Exportar MP4' : '↗ Exportar WebM';
+      updateExportButton();
     };
     const imageInput = $('#bgImageInput');
     if (imageInput) imageInput.onchange = event => setBackgroundImage(event.target.files[0]);
@@ -443,5 +448,5 @@
   }
   const savedEmail = localStorage.getItem('aurora-google-email');
   if (savedEmail) $('#avatar').textContent = savedEmail.charAt(0).toUpperCase();
-  updateQuota(); setupEvents(); resizeCanvas(); drawVisualizer();
+  updateExportButton(); updateQuota(); setupEvents(); resizeCanvas(); drawVisualizer();
 })();
