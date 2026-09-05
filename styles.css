@@ -402,3 +402,44 @@ body::before{opacity:.12}
   .content{padding-top:16px}
   .welcome-row h1{font-size:32px}
 }
+
+
+/* Final layout refinement */
+[hidden]{display:none!important}
+.bottom-grid{align-items:start}
+.queue-panel,.export-panel{min-height:0;height:fit-content}
+.queue-empty{min-height:150px}
+.queue-panel .panel-heading,.export-panel .panel-heading{min-height:76px}
+.export-panel>p{max-width:520px}
+.export-preview,.background-preview{max-width:100%;object-fit:contain}
+.panel-heading .kicker,.eyebrow,.nav-label{font-size:10px;letter-spacing:.16em}
+.panel h2{font-size:19px;letter-spacing:-.035em}
+.control-label span,.field-label,.upload-mini,.visual-settings label,.background-controls label{font-family:Manrope,system-ui,sans-serif;font-size:11px;letter-spacing:.02em;text-transform:none}
+.range-hints{font-family:Manrope,system-ui,sans-serif;font-size:10px}
+.track-info b,.now-copy b{font-size:12px}
+.track-info small,.now-copy small{font-size:11px}
+.dropzone strong{font-size:14px}
+.dropzone span{font-size:12px}
+.dropzone small{font-size:10px}
+.composition-grid{gap:16px}
+.composition-panel .panel-heading{padding-bottom:18px}
+.style-row{align-items:center}
+.style-row>.field-label{font-size:11px;font-weight:700}
+.background-controls{row-gap:16px}
+.export-count,.status-chip{font-size:10px}
+.info-strip p{font-size:12px}
+.sidebar-bottom{border-top:1px solid #141a22;padding-top:14px}
+.plan-card,.login-link{border-color:#222d39;background:#0a0e13}
+@media(min-width:1101px){
+  .studio-grid{align-items:start}
+  .mixer-panel{height:fit-content}
+  .visual-panel{min-height:0}
+}
+@media(max-width:760px){
+  .bottom-grid{align-items:stretch}
+  .queue-panel .panel-heading,.export-panel .panel-heading{min-height:0}
+  .queue-empty{min-height:120px}
+  .panel h2{font-size:17px}
+  .composition-grid{gap:13px}
+  .info-strip p{font-size:11px}
+}
