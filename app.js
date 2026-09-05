@@ -160,26 +160,41 @@
     const dw = mw * scale, dh = mh * scale;
     ctx2d.drawImage(media, (w - dw) / 2, (h - dh) / 2, dw, dh);
   }
+  function drawMediaContain(media, w, h) {
+    const mw = media.videoWidth || media.naturalWidth || 1;
+    const mh = media.videoHeight || media.naturalHeight || 1;
+    const scale = Math.min(w / mw, h / mh);
+    const dw = mw * scale, dh = mh * scale;
+    ctx2d.fillStyle = '#03070b';
+    ctx2d.fillRect(0, 0, w, h);
+    ctx2d.drawImage(media, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  }
   function drawBackground(w, h) {
     if (state.backgroundVideo && state.backgroundVideo.readyState >= 2) {
-      drawMediaCover(state.backgroundVideo, w, h);
-      ctx2d.fillStyle = '#05090dcc';
-      ctx2d.fillRect(0, 0, w, h);
-    } else if (state.backgroundImage && state.backgroundImage.complete) {
-      drawMediaCover(state.backgroundImage, w, h);
-      ctx2d.fillStyle = '#05090dcc';
-      ctx2d.fillRect(0, 0, w, h);
+      drawMediaContain(state.backgroundVideo, w, h);
+      return true;
     }
+    if (state.backgroundImage && state.backgroundImage.complete) {
+      drawMediaContain(state.backgroundImage, w, h);
+      return true;
+    }
+    return false;
   }
   function drawVisualizer() {
     const rect = canvas.getBoundingClientRect();
     const w = rect.width, h = rect.height;
     ctx2d.clearRect(0, 0, w, h);
-    drawBackground(w, h);
+    const hasBackground = drawBackground(w, h);
     const palette = currentPalette();
-    const gradient = ctx2d.createRadialGradient(w * (.45 + (state.pointer.x - .5) * .12), h * (.46 + (state.pointer.y - .5) * .12), 8, w * .5, h * .5, Math.max(w, h) * .66);
-    gradient.addColorStop(0, palette.primary + '44'); gradient.addColorStop(.45, '#0b202cee'); gradient.addColorStop(1, '#071015f5');
-    ctx2d.fillStyle = gradient; ctx2d.fillRect(0, 0, w, h);
+    if (!hasBackground) {
+      const gradient = ctx2d.createRadialGradient(w * (.45 + (state.pointer.x - .5) * .12), h * (.46 + (state.pointer.y - .5) * .12), 8, w * .5, h * .5, Math.max(w, h) * .66);
+      gradient.addColorStop(0, palette.primary + '44'); gradient.addColorStop(.45, '#0b202cee'); gradient.addColorStop(1, '#071015f5');
+      ctx2d.fillStyle = gradient; ctx2d.fillRect(0, 0, w, h);
+    } else {
+      // Keep the selected image/video bright and readable; only add a very light contrast veil.
+      ctx2d.fillStyle = '#02060a18';
+      ctx2d.fillRect(0, 0, w, h);
+    }
     const data = state.analyser ? new Uint8Array(state.analyser.frequencyBinCount) : new Uint8Array(128);
     if (state.analyser) state.analyser.getByteFrequencyData(data);
     const sensitivity = Number($('#sensitivity').value || 70) / 70;
@@ -191,21 +206,57 @@
     requestAnimationFrame(drawVisualizer);
   }
   function drawBars(data, w, h, sensitivity) {
+    // Radial rectangular bars, matching the classic music-visualizer look.
     const palette = currentPalette();
-    const count = 64, gap = 3, width = (w - gap * (count - 1) - 42) / count;
-    const base = h * .75;
+    const cx = w * (.5 + (state.pointer.x - .5) * .035);
+    const cy = h * (.5 + (state.pointer.y - .5) * .035);
+    const radius = Math.min(w, h) * .19;
+    const outer = Math.min(w, h) * .47;
+    const count = 96;
+    const step = Math.PI * 2 / count;
+    const barWidth = Math.max(2, Math.min(8, radius * step * .62));
+    const now = performance.now() / 55;
+    ctx2d.save();
+    ctx2d.globalCompositeOperation = 'lighter';
+
+    const aura = ctx2d.createRadialGradient(cx, cy, radius * .65, cx, cy, outer * 1.08);
+    aura.addColorStop(0, palette.primary + '30');
+    aura.addColorStop(.6, palette.secondary + '0b');
+    aura.addColorStop(1, 'transparent');
+    ctx2d.fillStyle = aura;
+    ctx2d.beginPath(); ctx2d.arc(cx, cy, outer, 0, Math.PI * 2); ctx2d.fill();
+
     for (let i = 0; i < count; i++) {
       const index = Math.floor(i * data.length / count);
       const value = (data[index] || 0) / 255;
-      const height = Math.max(3, value * h * .55 * sensitivity);
-      const x = 21 + i * (width + gap);
-      const g = ctx2d.createLinearGradient(0, base - height, 0, base);
-      g.addColorStop(0, palette.highlight); g.addColorStop(.5, palette.primary); g.addColorStop(1, palette.secondary);
-      ctx2d.fillStyle = g; ctx2d.globalAlpha = .35 + value * .65;
-      ctx2d.fillRect(x, base - height, width, height);
+      const level = Math.pow(value, .72);
+      const length = 9 + level * (outer - radius - 9) * Math.min(1.3, sensitivity);
+      const angle = i * step - Math.PI / 2;
+      const inner = radius + 5;
+      const hue = (i / count * 360 + now) % 360;
+      const color = state.style === 'mono' ? '#e8fbff' : 'hsl(' + hue + ' 92% ' + (58 + level * 13) + '%)';
+      ctx2d.save();
+      ctx2d.translate(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
+      ctx2d.rotate(angle + Math.PI / 2);
+      ctx2d.fillStyle = color;
+      ctx2d.globalAlpha = .48 + level * .52;
+      ctx2d.fillRect(-barWidth / 2, 0, barWidth, length);
+      ctx2d.restore();
     }
+
+    ctx2d.globalCompositeOperation = 'source-over';
+    const center = ctx2d.createRadialGradient(cx - radius * .25, cy - radius * .25, 2, cx, cy, radius);
+    center.addColorStop(0, palette.highlight + 'd9');
+    center.addColorStop(.55, palette.primary + 'a8');
+    center.addColorStop(1, palette.secondary + '78');
+    ctx2d.fillStyle = center;
+    ctx2d.globalAlpha = .72;
+    ctx2d.beginPath(); ctx2d.arc(cx, cy, radius, 0, Math.PI * 2); ctx2d.fill();
     ctx2d.globalAlpha = 1;
-    ctx2d.strokeStyle = '#5be6ed28'; ctx2d.lineWidth = 1; ctx2d.beginPath(); ctx2d.moveTo(20, base + 1); ctx2d.lineTo(w - 20, base + 1); ctx2d.stroke();
+    ctx2d.strokeStyle = palette.highlight + 'b0';
+    ctx2d.lineWidth = 1.5;
+    ctx2d.beginPath(); ctx2d.arc(cx, cy, radius + 2, 0, Math.PI * 2); ctx2d.stroke();
+    ctx2d.restore();
   }
   function drawWave(data, w, h, sensitivity) {
     const palette = currentPalette();
