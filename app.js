@@ -33,7 +33,9 @@
     backgroundVideo: null,
     backgroundUrl: '',
     exportHistory: (() => { try { return JSON.parse(localStorage.getItem('aurora-export-history') || '[]'); } catch { return []; } })(),
+    savedPresets: (() => { try { return JSON.parse(localStorage.getItem('aurora-presets') || '[]'); } catch { return []; } })(),
     lastExportUrl: '',
+    lastExportBlob: null,
     isAdmin: false,
     fileBlob: null,
     fileKey: '',
@@ -78,12 +80,12 @@
     return { primary: state.accent || preset.primary, secondary: preset.secondary, highlight: preset.highlight };
   }
   const sectionData = {
-    library: {eyebrow:'WORKSPACE / LIBRARY', title:'Biblioteca', text:'Organize suas faixas e mantenha tudo pronto para a próxima sessão.', cards:[['Arquivos locais','Seus áudios ficam neste dispositivo. Nenhum arquivo é enviado automaticamente.','◫'],['Sessões recentes','Reabra uma sessão e continue de onde parou.','↺'],['Busca rápida','Encontre uma faixa pelo nome em poucos segundos.','⌕']]},
-    visualizers: {eyebrow:'WORKSPACE / VISUALIZERS', title:'Visualizadores', text:'Escolha uma leitura visual para cada momento da sua música.', cards:[['Barras radiais','Leitura circular com barras coloridas que respiram com a batida.','▥'],['Disco giratório','Um disco central com sulcos, brilho e rotação contínua.','◎'],['Triângulos','Geometria neon em camadas para batidas marcantes.','△'],['Espectro espelhado','Barras simétricas para uma leitura limpa e moderna.','◫'],['Onda','Forma de onda baseada no sinal de tempo real.','〰'],['Partículas','Pontos orbitais leves para uma atmosfera espacial.','✦']]},
-    mixer: {eyebrow:'TOOLS / MIXER', title:'Mixer', text:'Ajuste o equilíbrio da faixa com controles precisos.', cards:[['Low shelf','Reforce ou reduza os graves sem alterar o restante do espectro.','◒'],['High shelf','Dê presença aos agudos com suavidade.','⌁'],['Monitor local','Todo o processamento acontece no navegador.','●']]},
-    presets: {eyebrow:'TOOLS / PRESETS', title:'Presets', text:'Salve combinações de mixer e visual para repetir seu estilo.', cards:[['Night drive','Graves presentes, brilho controlado e visual orbital.','✦'],['Clean room','Som equilibrado para podcasts e conteúdo falado.','✧'],['Pulse','Sensibilidade alta para batidas marcantes.','◉']]},
-    exports: {eyebrow:'DELIVERY / EXPORTS', title:'Exportações', text:'Acompanhe seus dois envios disponíveis no plano Free.', cards:[['Áudio processado', 'Exporte a faixa com os filtros aplicados em WebM.','↗'],['Limite do plano', '2 uploads e 2 exportações por ciclo gratuito.','⊙'],['Pronto para API', 'Login Google e recursos premium serão conectados depois.','＋']]},
-    settings: {eyebrow:'ACCOUNT / SETTINGS', title:'Configurações', text:'Preferências do workspace e integrações futuras.', cards:[['Conta Google','Área preparada para conectar o Google OAuth.','G'],['Preferências','Sensibilidade, tema e comportamento do player.','⚙'],['Privacidade','Arquivos processados localmente por padrão.','◆']]}
+    library: {eyebrow:'ESPAÇO / BIBLIOTECA', title:'Biblioteca', text:'Organize suas faixas e mantenha tudo pronto para a próxima sessão.', cards:[['Arquivos locais','Seus áudios ficam neste dispositivo. Nenhum arquivo é enviado automaticamente.','◫'],['Sessões recentes','Reabra uma sessão e continue de onde parou.','↺'],['Busca rápida','Encontre uma faixa pelo nome em poucos segundos.','⌕']]},
+    visualizers: {eyebrow:'ESPAÇO / VISUALIZADORES', title:'Visualizadores', text:'Escolha uma leitura visual para cada momento da sua música.', cards:[['Barras radiais','Leitura circular com barras coloridas que respiram com a batida.','▥'],['Disco giratório','Um disco central com sulcos, brilho e rotação contínua.','◎'],['Triângulos','Geometria neon em camadas para batidas marcantes.','△'],['Espectro espelhado','Barras simétricas para uma leitura limpa e moderna.','◫'],['Onda','Forma de onda baseada no sinal de tempo real.','〰'],['Partículas','Pontos orbitais leves para uma atmosfera espacial.','✦']]},
+    mixer: {eyebrow:'FERRAMENTAS / MIXER', title:'Mixer', text:'Ajuste o equilíbrio da faixa com controles precisos.', cards:[['Graves','Reforce ou reduza os graves sem alterar o restante do espectro.','◒'],['Agudos','Dê presença aos agudos com suavidade.','⌁'],['Monitor local','Todo o processamento acontece no navegador.','●']]},
+    presets: {eyebrow:'FERRAMENTAS / PRESETS', title:'Presets', text:'Salve combinações de mixer e visual para repetir seu estilo.', cards:[['Night drive','Graves presentes, brilho controlado e visual orbital.','✦'],['Clean room','Som equilibrado para podcasts e conteúdo falado.','✧'],['Pulse','Sensibilidade alta para batidas marcantes.','◉']]},
+    exports: {eyebrow:'ENTREGA / EXPORTAÇÕES', title:'Exportações', text:'Acompanhe e baixe novamente os arquivos criados.', cards:[['Arquivo processado', 'Exporte a faixa com os filtros aplicados.','↗'],['Progresso claro', 'Acompanhe o andamento e cancele quando precisar.','⊙'],['Prévia imediata', 'Revise o resultado antes de baixar.','＋']]},
+    settings: {eyebrow:'CONTA / CONFIGURAÇÕES', title:'Configurações', text:'Preferências do espaço de trabalho e integrações.', cards:[['Conta Google','Área para conectar sua conta com segurança.','G'],['Preferências','Sensibilidade, tema e comportamento do player.','⚙'],['Privacidade','Arquivos processados localmente por padrão.','◆']]}
   };
   function toast(message) {
     const node = $('#toast');
@@ -96,6 +98,41 @@
     localStorage.setItem(storage.uploads, String(state.uploads));
     localStorage.setItem(storage.exports, String(state.exports));
     localStorage.setItem(storage.exportHistory, JSON.stringify(state.exportHistory));
+    localStorage.setItem('aurora-presets', JSON.stringify(state.savedPresets));
+  }
+  function currentPresetSnapshot(name) {
+    return {
+      id: 'preset-' + Date.now(),
+      name: String(name || 'Meu preset').trim().slice(0, 40),
+      createdAt: Date.now(),
+      visual: state.visual,
+      style: state.style,
+      accent: state.accent,
+      barCount: state.barCount,
+      visualIntensity: state.visualIntensity,
+      visualRotation: state.visualRotation,
+      visualOpacity: state.visualOpacity,
+      barPlacement: state.barPlacement,
+      bass: Number($('#bass')?.value || 0),
+      treble: Number($('#treble')?.value || 0),
+      sensitivity: Number($('#sensitivity')?.value || 70),
+      smooth: Number($('#smooth')?.value || 70),
+      noiseReduction: Number($('#noiseReduction')?.value || 0)
+    };
+  }
+  function applyPreset(values) {
+    if (!values) return;
+    if (values.style && stylePresets[values.style]) applyVisualStyle(values.style);
+    if (values.visual) {
+      state.visual = values.visual;
+      document.querySelectorAll('[data-visual]').forEach(x => x.classList.toggle('active', x.dataset.visual === state.visual));
+    }
+    [['barCount', values.barCount], ['visualIntensity', Math.round((values.visualIntensity || 1) * 100)], ['visualRotation', values.visualRotation || 0], ['visualOpacity', Math.round((values.visualOpacity || 1) * 100)], ['barPlacement', values.barPlacement || 'outside']].forEach(([id, value]) => {
+      const input = $('#' + id); if (input && value !== undefined) { input.value = value; setVisualSetting(id, value); }
+    });
+    [['bass', values.bass], ['treble', values.treble], ['sensitivity', values.sensitivity], ['smooth', values.smooth], ['noiseReduction', values.noiseReduction]].forEach(([id, value]) => {
+      const input = $('#' + id); if (input && value !== undefined) { input.value = value; setControl(id, value); }
+    });
   }
   const dbPromise = (() => {
     if (!window.indexedDB) return Promise.resolve(null);
@@ -452,13 +489,23 @@
       node.innerHTML = '<span class="history-empty">Nenhuma exportação nesta sessão.</span>';
       return;
     }
-    node.innerHTML = state.exportHistory.slice().reverse().map(item => {
+    node.innerHTML = state.exportHistory.slice().reverse().map((item, index) => {
       const time = new Date(item.time).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
-      return '<div class="history-item"><span class="history-icon">↗</span><span><b>' + escapeHtml(item.name) + '</b><small>' + escapeHtml(item.type.toUpperCase()) + ' · ' + time + '</small></span></div>';
+      return '<div class="history-item"><span class="history-icon">↗</span><span><b>' + escapeHtml(item.name) + '</b><small>' + escapeHtml(item.type.toUpperCase()) + ' · ' + time + '</small></span><button class="ghost-btn" data-history-download="' + index + '" type="button"' + (item.url ? '' : ' disabled') + '>Baixar</button><button class="danger-btn" data-history-delete="' + index + '" type="button" aria-label="Excluir exportação">×</button></div>';
     }).join('');
+    node.querySelectorAll('[data-history-download]').forEach(button => button.onclick = () => {
+      const item = state.exportHistory.slice().reverse()[Number(button.dataset.historyDownload)];
+      if (item?.url) { const link = document.createElement('a'); link.href = item.url; link.download = item.filename || 'aurora-export'; link.click(); }
+      else toast('O arquivo só pode ser baixado novamente enquanto esta sessão estiver aberta.');
+    });
+    node.querySelectorAll('[data-history-delete]').forEach(button => button.onclick = () => {
+      const reversedIndex = Number(button.dataset.historyDelete);
+      state.exportHistory.splice(state.exportHistory.length - 1 - reversedIndex, 1);
+      saveCounters(); renderExportHistory(); toast('Exportação removida do histórico.');
+    });
   }
   function rememberExport(type) {
-    state.exportHistory.push({name: state.fileName || 'visualização', type, time: Date.now()});
+    state.exportHistory.push({name: state.fileName || 'visualização', filename: baseExportName() + (type === 'mp3' ? '.mp3' : '-visual.' + type), type, time: Date.now(), url: state.lastExportUrl || ''});
     state.exportHistory = state.exportHistory.slice(-8);
     saveCounters();
     renderExportHistory();
@@ -498,7 +545,11 @@
     }
     const flushed = encoder.flush(); if (flushed.length) chunks.push(new Int8Array(flushed));
     const blob = new Blob(chunks, {type:'audio/mpeg'});
-    downloadBlob(blob, baseExportName() + '.mp3'); updateExportMeta('MP3', blob); setExportProgress(100, 'Concluído');
+    const filename = baseExportName() + '.mp3';
+    if (state.lastExportUrl) URL.revokeObjectURL(state.lastExportUrl);
+    state.lastExportUrl = URL.createObjectURL(blob); state.lastExportBlob = blob;
+    const preview = $('#exportPreview'); if (preview) { preview.src = state.lastExportUrl; preview.hidden = false; preview.load(); }
+    downloadBlob(blob, filename); updateExportMeta('MP3', blob); setExportProgress(100, 'Concluído');
   }
   function exportVideo(format) {
     return new Promise((resolve, reject) => {
@@ -507,20 +558,31 @@
       const mime = mimeCandidates.find(type => MediaRecorder.isTypeSupported(type));
       if (!mime) { reject(new Error(format === 'mp4' ? 'mp4-unsupported' : 'video-unsupported')); return; }
       setupAudioGraph();
-      const stream = canvas.captureStream(30);
+      // Exporta em resolução fixa, sem depender do tamanho da janela.
+      const exportCanvas = document.createElement('canvas');
+      const exportSize = state.orientation === 'portrait' ? [1080, 1920] : [1920, 1080];
+      exportCanvas.width = exportSize[0]; exportCanvas.height = exportSize[1];
+      const exportCtx = exportCanvas.getContext('2d', {alpha:false});
+      const stream = exportCanvas.captureStream(30);
       if (state.recordDestination) state.recordDestination.stream.getAudioTracks().forEach(track => stream.addTrack(track));
       const recorder = new MediaRecorder(stream, {mimeType: mime});
       state.currentRecorder = recorder; state.exportCancelled = false;
       const chunks = []; let settled = false; const started = performance.now();
+      let frameHandle = 0;
+      const paintExportFrame = () => {
+        exportCtx.fillStyle = '#030508'; exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+        exportCtx.drawImage(canvas, 0, 0, exportCanvas.width, exportCanvas.height);
+        frameHandle = requestAnimationFrame(paintExportFrame);
+      };
       const timer = setInterval(() => {
         const duration = Number(audio.duration) || 0; const percent = duration ? (audio.currentTime / duration) * 92 : Math.min(90, (performance.now() - started) / 1000);
         setExportProgress(percent, Math.round(percent) + '%');
       }, 250);
       const finish = () => { if (recorder.state !== 'inactive') recorder.stop(); };
       recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
-      recorder.onerror = () => { if (!settled) { settled = true; clearInterval(timer); reject(new Error('recording')); } };
+      recorder.onerror = () => { if (!settled) { settled = true; clearInterval(timer); cancelAnimationFrame(frameHandle); reject(new Error('recording')); } };
       recorder.onstop = () => {
-        clearInterval(timer); state.currentRecorder = null;
+        clearInterval(timer); cancelAnimationFrame(frameHandle); state.currentRecorder = null;
         if (settled) return;
         if (state.exportCancelled) { settled = true; reject(new Error('cancelled')); return; }
         settled = true; const extension = format === 'mp4' ? 'mp4' : 'webm';
@@ -528,11 +590,12 @@
         downloadBlob(blob, baseExportName() + '-visual.' + extension);
         if (state.lastExportUrl) URL.revokeObjectURL(state.lastExportUrl);
         state.lastExportUrl = URL.createObjectURL(blob);
+        state.lastExportBlob = blob;
         const preview = $('#exportPreview'); if (preview) { preview.src = state.lastExportUrl; preview.hidden = false; preview.load(); }
         updateExportMeta(format.toUpperCase(), blob); setExportProgress(100, 'Concluído'); resolve();
       };
       if (state.backgroundVideo) state.backgroundVideo.play().catch(() => {});
-      audio.currentTime = 0; recorder.start(200);
+      audio.currentTime = 0; recorder.start(200); paintExportFrame();
       audio.play().then(() => audio.addEventListener('ended', finish, {once:true})).catch(() => { finish(); if (!settled) { settled = true; reject(new Error('audio-start')); } });
     });
   }
@@ -561,6 +624,7 @@
   function setBackgroundImage(file) {
     if (!file || !String(file.type || '').startsWith('image/')) { toast('Escolha uma imagem JPG, PNG ou WEBP.'); return; }
     if (file.size > 100 * 1024 * 1024) { toast('A imagem ultrapassa 100 MB.'); return; }
+    if (state.backgroundVideo) { state.backgroundVideo.pause(); state.backgroundVideo.removeAttribute('src'); state.backgroundVideo.load(); state.backgroundVideo = null; }
     if (state.backgroundUrl) URL.revokeObjectURL(state.backgroundUrl);
     state.backgroundUrl = URL.createObjectURL(file); state.backgroundVideo = null;
     const image = new Image();
@@ -579,6 +643,7 @@
   function setBackgroundVideo(file) {
     if (!file || !String(file.type || '').startsWith('video/')) { toast('Escolha um vídeo MP4 ou WEBM.'); return; }
     if (file.size > 100 * 1024 * 1024) { toast('O vídeo de fundo ultrapassa 100 MB.'); return; }
+    if (state.backgroundVideo) { state.backgroundVideo.pause(); state.backgroundVideo.removeAttribute('src'); state.backgroundVideo.load(); state.backgroundVideo = null; }
     if (state.backgroundUrl) URL.revokeObjectURL(state.backgroundUrl);
     state.backgroundUrl = URL.createObjectURL(file); state.backgroundImage = null;
     const video = document.createElement('video');
@@ -639,7 +704,17 @@
       return view;
     }
     if (section === 'exports') {
-      view.innerHTML = '<div class="directory-header"><div><p class="eyebrow">DELIVERY / EXPORTAÇÕES</p><h1>Exportações</h1><p>Histórico das exportações desta sessão.</p></div><button class="outline-btn" data-action="open-studio" type="button">← Voltar ao Studio</button></div><div class="export-directory-list">' + (state.exportHistory.length ? state.exportHistory.slice().reverse().map(item => '<article class="history-item"><span class="history-icon">↗</span><span><b>' + escapeHtml(item.name) + '</b><small>' + escapeHtml(item.type.toUpperCase()) + ' · ' + new Date(item.time).toLocaleString('pt-BR') + '</small></span></article>').join('') : '<div class="directory-empty">Nenhuma exportação nesta sessão.</div>') + '</div>';
+      view.innerHTML = '<div class="directory-header"><div><p class="eyebrow">ENTREGA / EXPORTAÇÕES</p><h1>Exportações</h1><p>Histórico dos arquivos criados nesta sessão.</p></div><button class="outline-btn" data-action="open-studio" type="button">← Voltar ao Studio</button></div><div class="export-directory-list">' + (state.exportHistory.length ? state.exportHistory.slice().reverse().map((item, index) => '<article class="history-item"><span class="history-icon">↗</span><span><b>' + escapeHtml(item.name) + '</b><small>' + escapeHtml(item.type.toUpperCase()) + ' · ' + new Date(item.time).toLocaleString('pt-BR') + '</small></span><div class="card-actions"><button class="ghost-btn" data-action="download-export" data-index="' + index + '" type="button"' + (item.url ? '' : ' disabled') + '>Baixar novamente</button><button class="danger-btn" data-action="delete-export" data-index="' + index + '" type="button">Excluir</button></div></article>').join('') : '<div class="directory-empty">Nenhuma exportação nesta sessão.</div>') + '</div>';
+      return view;
+    }
+    if (section === 'presets') {
+      const builtIns = [
+        {name:'Night drive', text:'Graves presentes, brilho controlado e visual orbital.', index:0},
+        {name:'Clean room', text:'Som equilibrado para podcasts e conteúdo falado.', index:1},
+        {name:'Pulse', text:'Sensibilidade alta para batidas marcantes.', index:2}
+      ];
+      const saved = state.savedPresets.map((item, index) => ({name:item.name, text:'Preset salvo em ' + new Date(item.createdAt).toLocaleDateString('pt-BR'), saved:true, index}));
+      view.innerHTML = '<div class="directory-header"><div><p class="eyebrow">FERRAMENTAS / PRESETS</p><h1>Presets</h1><p>Guarde combinações de áudio e visual para reutilizar em poucos segundos.</p></div><div class="directory-actions"><button class="outline-btn" data-action="save-preset" type="button">＋ Salvar configuração atual</button><button class="ghost-btn" data-action="open-studio" type="button">← Studio</button></div></div><div class="directory-cards preset-list">' + builtIns.concat(saved).map(item => '<article class="directory-card"><span class="directory-icon">✦</span><h3>' + escapeHtml(item.name) + '</h3><p>' + escapeHtml(item.text) + '</p><div class="card-actions"><button class="outline-btn" data-action="' + (item.saved ? 'apply-saved-preset' : 'presets') + '" data-index="' + item.index + '" type="button">Aplicar preset</button>' + (item.saved ? '<button class="danger-btn" data-action="delete-preset" data-index="' + item.index + '" type="button">Excluir</button>' : '') + '</div></article>').join('') + '</div>';
       return view;
     }
     view.innerHTML = '<div class="directory-header"><div><p class="eyebrow">' + data.eyebrow + '</p><h1>' + data.title + '</h1><p>' + data.text + '</p></div><button class="outline-btn" data-action="open-studio" type="button">← Voltar ao Studio</button></div><div class="directory-cards">' + data.cards.map((card, index) => '<article class="directory-card"><span class="directory-icon">' + card[2] + '</span><h3>' + card[0] + '</h3><p>' + card[1] + '</p><button class="outline-btn" data-action="' + section + '" data-index="' + index + '" type="button">' + (section === 'presets' ? 'Aplicar preset' : section === 'visualizers' ? 'Usar visual' : section === 'mixer' ? 'Abrir mixer' : 'Abrir no Studio') + '</button></article>').join('') + '</div>';
@@ -651,8 +726,35 @@
     if (search) search.oninput = () => view.querySelectorAll('.library-card').forEach(card => card.hidden = !card.textContent.toLowerCase().includes(search.value.toLowerCase()));
     view.querySelectorAll('[data-action="clear-session"]').forEach(button => button.onclick = () => { $('#clearSession').click(); showSection('library'); });
     view.querySelectorAll('[data-action="presets"]').forEach(button => button.onclick = () => {
-      const values = [{bass:5,treble:2,sensitivity:85,smooth:60},{bass:0,treble:4,sensitivity:65,smooth:82},{bass:8,treble:5,sensitivity:120,smooth:45}][Number(button.dataset.index)] || {};
-      Object.entries(values).forEach(([id,value]) => { const input=$('#'+id); if(input){input.value=value;setControl(id,value);} }); showSection('studio'); toast('Preset aplicado.');
+      const values = [
+        {bass:5,treble:2,sensitivity:85,smooth:60,visual:'disc',style:'aurora'},
+        {bass:0,treble:4,sensitivity:65,smooth:82,visual:'wave',style:'mono'},
+        {bass:8,treble:5,sensitivity:120,smooth:45,visual:'bars',style:'ember'}
+      ][Number(button.dataset.index)] || {};
+      applyPreset(values); showSection('studio'); toast('Preset aplicado.');
+    });
+    view.querySelectorAll('[data-action="save-preset"]').forEach(button => button.onclick = () => {
+      const name = window.prompt('Nome do preset', 'Meu preset');
+      if (!name || !name.trim()) return;
+      state.savedPresets.push(currentPresetSnapshot(name));
+      state.savedPresets = state.savedPresets.slice(-12);
+      saveCounters(); showSection('presets'); toast('Preset salvo na sua biblioteca.');
+    });
+    view.querySelectorAll('[data-action="apply-saved-preset"]').forEach(button => button.onclick = () => {
+      applyPreset(state.savedPresets[Number(button.dataset.index)]); showSection('studio'); toast('Preset aplicado.');
+    });
+    view.querySelectorAll('[data-action="delete-preset"]').forEach(button => button.onclick = () => {
+      state.savedPresets.splice(Number(button.dataset.index), 1); saveCounters(); showSection('presets'); toast('Preset excluído.');
+    });
+    view.querySelectorAll('[data-action="download-export"]').forEach(button => button.onclick = () => {
+      const item = state.exportHistory.slice().reverse()[Number(button.dataset.index)];
+      if (item?.url) { const link = document.createElement('a'); link.href = item.url; link.download = item.filename || item.name || 'aurora-export'; link.click(); }
+    });
+    view.querySelectorAll('[data-action="delete-export"]').forEach(button => button.onclick = () => {
+      const reversedIndex = Number(button.dataset.index);
+      const index = state.exportHistory.length - 1 - reversedIndex;
+      if (index >= 0) state.exportHistory.splice(index, 1);
+      saveCounters(); showSection('exports'); toast('Exportação excluída do histórico.');
     });
     view.querySelectorAll('[data-action="visualizers"]').forEach(button => button.onclick = () => { const modes=['bars','disc','triangles','mirror','wave','particles']; const mode=modes[Number(button.dataset.index)]||'bars'; state.visual=mode; document.querySelectorAll('[data-visual]').forEach(x=>x.classList.toggle('active',x.dataset.visual===mode)); showSection('studio'); toast('Visual ' + mode + ' selecionado.'); });
     view.querySelectorAll('[data-action="mixer"]').forEach(button => button.onclick = () => { showSection('studio'); document.querySelector('.mixer-panel')?.scrollIntoView({behavior:'smooth',block:'center'}); });
@@ -718,6 +820,7 @@
     $('#clearSession').onclick = () => {
       if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
       if (state.backgroundUrl) URL.revokeObjectURL(state.backgroundUrl);
+      if (state.backgroundVideo) { state.backgroundVideo.pause(); state.backgroundVideo.removeAttribute('src'); state.backgroundVideo.load(); }
       state.objectUrl=''; state.fileBlob=null; state.fileKey=''; state.fileName=''; state.backgroundUrl=''; state.backgroundImage=state.defaultArtwork; state.backgroundVideo=null; $('#canvasWrap')?.classList.remove('has-custom-bg');
       audio.pause(); audio.removeAttribute('src'); audio.load();
       const imagePreview=$('#bgImagePreview'), videoPreview=$('#bgVideoPreview'); if(imagePreview){imagePreview.removeAttribute('src');imagePreview.hidden=true;} if(videoPreview){videoPreview.pause();videoPreview.removeAttribute('src');videoPreview.hidden=true;}
