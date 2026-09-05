@@ -181,6 +181,7 @@
     requestAnimationFrame(drawVisualizer);
   }
   function drawBars(data, w, h, sensitivity) {
+    const palette = currentPalette();
     const count = 64, gap = 3, width = (w - gap * (count - 1) - 42) / count;
     const base = h * .75;
     for (let i = 0; i < count; i++) {
@@ -197,6 +198,7 @@
     ctx2d.strokeStyle = '#5be6ed28'; ctx2d.lineWidth = 1; ctx2d.beginPath(); ctx2d.moveTo(20, base + 1); ctx2d.lineTo(w - 20, base + 1); ctx2d.stroke();
   }
   function drawWave(data, w, h, sensitivity) {
+    const palette = currentPalette();
     ctx2d.lineWidth = 2; ctx2d.strokeStyle = palette.primary; ctx2d.shadowBlur = 18; ctx2d.shadowColor = palette.primary;
     ctx2d.beginPath();
     for (let i = 0; i < 128; i++) { const x = i / 127 * w; const v = ((data[i] || 0) / 255 - .5) * h * .55 * sensitivity; const y = h * .5 + v; if (i === 0) ctx2d.moveTo(x,y); else ctx2d.lineTo(x,y); }
@@ -204,6 +206,7 @@
     ctx2d.strokeStyle = palette.secondary + '55'; ctx2d.lineWidth = 1; ctx2d.beginPath(); ctx2d.moveTo(0,h*.5); ctx2d.lineTo(w,h*.5); ctx2d.stroke();
   }
   function drawOrbit(data, w, h, sensitivity) {
+    const palette = currentPalette();
     const cx = w * (.5 + (state.pointer.x - .5) * .08), cy = h * (.5 + (state.pointer.y - .5) * .08);
     const radius = Math.min(w,h) * .22;
     for (let i = 0; i < 72; i++) {
