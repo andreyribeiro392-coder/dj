@@ -418,7 +418,7 @@
       document.documentElement.style.setProperty('--accent', state.accent);
       state.style = 'custom';
       document.querySelectorAll('.style-chip').forEach(button => button.classList.remove('active'));
-    });
+    };
     window.addEventListener('resize', resizeCanvas);
     document.addEventListener('keydown', event => { if (event.code === 'Space' && !/input|textarea|select/i.test(document.activeElement.tagName)) { event.preventDefault(); togglePlay(); } if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'e') { event.preventDefault(); exportAudio(); } if (event.key === 'Escape') closeLogin(); });
   }
