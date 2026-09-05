@@ -801,7 +801,11 @@
     ['barCount','visualIntensity','visualRotation','visualOpacity','barPlacement'].forEach(id => { const input=$('#'+id); if(input){ input.value = id==='barCount'?state.barCount:id==='visualIntensity'?Math.round(state.visualIntensity*100):id==='visualRotation'?state.visualRotation:id==='visualOpacity'?Math.round(state.visualOpacity*100):state.barPlacement; input.addEventListener('input', e => setVisualSetting(id, e.target.value)); setVisualSetting(id,input.value); } });
     document.querySelectorAll('.nav-item').forEach(item => item.onclick = (event) => { event.preventDefault(); showSection(item.dataset.section); $('#sidebar').classList.remove('open'); window.scrollTo({top:0,behavior:'smooth'}); });
     $('#menuToggle').onclick = () => $('#sidebar').classList.add('open'); $('#closeMenu').onclick = () => $('#sidebar').classList.remove('open');
-    if ($('#googleLogin')) $('#googleLogin').onclick = (event) => { event.preventDefault(); window.location.assign('/login.html'); }; if ($('#avatar')) $('#avatar').onclick = (event) => { event.preventDefault(); window.location.assign('/login.html'); }; if ($('#closeModal')) $('#closeModal').onclick = closeLogin; $('#loginModal').onclick = e => { if (e.target.id === 'loginModal') closeLogin(); };
+    if (!window.AURORA_AUTH_OPTIONAL) {
+      if ($('#googleLogin')) $('#googleLogin').onclick = (event) => { event.preventDefault(); window.location.assign('/login.html'); };
+      if ($('#avatar')) $('#avatar').onclick = (event) => { event.preventDefault(); window.location.assign('/login.html'); };
+    }
+    if ($('#closeModal')) $('#closeModal').onclick = closeLogin; $('#loginModal').onclick = e => { if (e.target.id === 'loginModal') closeLogin(); };
     const connectGoogle = $('#connectGoogle');
     if (connectGoogle) connectGoogle.onclick = () => {
       const status = $('#loginStatus');
