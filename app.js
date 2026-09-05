@@ -17,6 +17,8 @@
     bass: null,
     treble: null,
     analyser: null,
+    eqFilters: [],
+    noiseReduction: 0,
     recordDestination: null,
     muted: false,
     visual: 'bars',
@@ -50,7 +52,8 @@
     visualLayer: localStorage.getItem('aurora-visual-layer') || 'front',
     exportName: localStorage.getItem('aurora-export-name') || '',
     currentRecorder: null,
-    exportCancelled: false
+    exportCancelled: false,
+    lastFrameTime: 0
   };
   const maxUploads = 2;
   const maxExports = 2;
@@ -66,7 +69,7 @@
   }
   const sectionData = {
     library: {eyebrow:'WORKSPACE / LIBRARY', title:'Biblioteca', text:'Organize suas faixas e mantenha tudo pronto para a próxima sessão.', cards:[['Arquivos locais','Seus áudios ficam neste dispositivo. Nenhum arquivo é enviado automaticamente.','◫'],['Sessões recentes','Reabra uma sessão e continue de onde parou.','↺'],['Busca rápida','Encontre uma faixa pelo nome em poucos segundos.','⌕']]},
-    visualizers: {eyebrow:'WORKSPACE / VISUALIZERS', title:'Visualizadores', text:'Escolha uma leitura visual para cada momento da sua música.', cards:[['Spectrum bars','Barras que respondem aos graves e agudos em tempo real.','▥'],['Orbit field','Partículas orbitais com movimento suave e profundo.','◌'],['Waveform','Onda contínua para acompanhar a dinâmica da faixa.','〰']]},
+    visualizers: {eyebrow:'WORKSPACE / VISUALIZERS', title:'Visualizadores', text:'Escolha uma leitura visual para cada momento da sua música.', cards:[['Barras radiais','Leitura circular com barras coloridas que respiram com a batida.','▥'],['Disco giratório','Um disco central com sulcos, brilho e rotação contínua.','◎'],['Triângulos','Geometria neon em camadas para batidas marcantes.','△'],['Espectro espelhado','Barras simétricas para uma leitura limpa e moderna.','◫'],['Onda','Forma de onda baseada no sinal de tempo real.','〰'],['Partículas','Pontos orbitais leves para uma atmosfera espacial.','✦']]},
     mixer: {eyebrow:'TOOLS / MIXER', title:'Mixer', text:'Ajuste o equilíbrio da faixa com controles precisos.', cards:[['Low shelf','Reforce ou reduza os graves sem alterar o restante do espectro.','◒'],['High shelf','Dê presença aos agudos com suavidade.','⌁'],['Monitor local','Todo o processamento acontece no navegador.','●']]},
     presets: {eyebrow:'TOOLS / PRESETS', title:'Presets', text:'Salve combinações de mixer e visual para repetir seu estilo.', cards:[['Night drive','Graves presentes, brilho controlado e visual orbital.','✦'],['Clean room','Som equilibrado para podcasts e conteúdo falado.','✧'],['Pulse','Sensibilidade alta para batidas marcantes.','◉']]},
     exports: {eyebrow:'DELIVERY / EXPORTS', title:'Exportações', text:'Acompanhe seus dois envios disponíveis no plano Free.', cards:[['Áudio processado', 'Exporte a faixa com os filtros aplicados em WebM.','↗'],['Limite do plano', '2 uploads e 2 exportações por ciclo gratuito.','⊙'],['Pronto para API', 'Login Google e recursos premium serão conectados depois.','＋']]},
@@ -157,12 +160,17 @@
     state.source = state.audioContext.createMediaElementSource(audio);
     state.bass = state.audioContext.createBiquadFilter();
     state.bass.type = 'lowshelf'; state.bass.frequency.value = 180; state.bass.gain.value = 0;
+    state.eqFilters = [60,170,310,600,1200,3000,8000,14000].map((frequency) => { const filter = state.audioContext.createBiquadFilter(); filter.type = 'peaking'; filter.frequency.value = frequency; filter.Q.value = 1.05; filter.gain.value = 0; return filter; });
     state.treble = state.audioContext.createBiquadFilter();
     state.treble.type = 'highshelf'; state.treble.frequency.value = 3200; state.treble.gain.value = 0;
+    state.noiseGate = state.audioContext.createDynamicsCompressor();
+    state.noiseGate.threshold.value = -48; state.noiseGate.knee.value = 18; state.noiseGate.ratio.value = 3; state.noiseGate.attack.value = 0.01; state.noiseGate.release.value = 0.2;
     state.analyser = state.audioContext.createAnalyser();
     state.analyser.fftSize = 1024; state.analyser.smoothingTimeConstant = .7;
     state.recordDestination = state.audioContext.createMediaStreamDestination();
-    state.source.connect(state.bass).connect(state.treble).connect(state.analyser);
+    let chain = state.source.connect(state.bass);
+    state.eqFilters.forEach(filter => { chain = chain.connect(filter); });
+    chain.connect(state.treble).connect(state.noiseGate).connect(state.analyser);
     state.analyser.connect(state.audioContext.destination);
     state.analyser.connect(state.recordDestination);
   }
@@ -213,10 +221,14 @@
     if (id === 'bass' && state.bass) state.bass.gain.value = n;
     if (id === 'treble' && state.treble) state.treble.gain.value = n;
     if (id === 'smooth' && state.analyser) state.analyser.smoothingTimeConstant = n / 100;
+    if (id === 'noiseReduction') { state.noiseReduction = n; if (state.noiseGate) state.noiseGate.threshold.value = -48 + n * .42; }
+    if (id.startsWith('eq') && state.eqFilters.length) { const index = [60,170,310,600,1200,3000,8000,14000].indexOf(Number(id.slice(2))); if (index >= 0 && state.eqFilters[index]) state.eqFilters[index].gain.value = n; }
     if (id === 'bass') $('#bassValue').textContent = (n > 0 ? '+' : '') + n + ' dB';
     if (id === 'treble') $('#trebleValue').textContent = (n > 0 ? '+' : '') + n + ' dB';
     if (id === 'sensitivity') $('#sensitivityValue').textContent = n + '%';
     if (id === 'smooth') $('#smoothValue').textContent = n + '%';
+    if (id === 'noiseReduction') $('#noiseReductionValue').textContent = n + '%';
+    if (id.startsWith('eq')) { const output = $('#' + id + 'Value'); if (output) output.textContent = (n > 0 ? '+' : '') + n + ' dB'; }
   }
   function setVisualSetting(id, value) {
     const n = Number(value);
@@ -245,7 +257,7 @@
     const node = $('#' + id + 'Value'); if (node && labels[id] !== undefined) node.textContent = labels[id];
   }
   function resetControls() {
-    [['bass',0],['treble',0],['sensitivity',70],['smooth',70]].forEach(([id,value]) => { const input = $('#' + id); input.value = value; setControl(id, value); });
+    [['bass',0],['treble',0],['sensitivity',70],['smooth',70],['noiseReduction',0],['eq60',0],['eq170',0],['eq310',0],['eq600',0],['eq1200',0],['eq3000',0],['eq8000',0],['eq14000',0]].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setControl(id, value); } });
     [['barCount',96],['visualIntensity',100],['visualRotation',0],['visualOpacity',100],['barPlacement','outside']].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setVisualSetting(id, value); } });
     [['bgOpacity',100],['bgZoom',100],['bgX',0],['bgY',0],['bgBrightness',100],['bgContrast',100],['bgBlur',0],['backgroundFit','contain'],['visualLayer','front']].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setBackgroundSetting(id, value); } });
     toast('Controles restaurados.');
@@ -312,8 +324,14 @@
     const average = data.reduce((a,b) => a + b, 0) / Math.max(1, data.length);
     ctx2d.save();
     ctx2d.globalAlpha = state.visualOpacity * (state.visualLayer === 'back' ? .42 : 1);
-    if (state.visual === 'wave') drawWave(data, w, h, sensitivity);
-    else if (state.visual === 'orbit') drawOrbit(data, w, h, sensitivity);
+    if (state.visual === 'wave') {
+      const timeData = state.analyser ? new Uint8Array(state.analyser.fftSize) : data;
+      if (state.analyser) state.analyser.getByteTimeDomainData(timeData);
+      drawWave(timeData, w, h, sensitivity);
+    } else if (state.visual === 'orbit' || state.visual === 'particles') drawOrbit(data, w, h, sensitivity, state.visual === 'particles');
+    else if (state.visual === 'disc') drawDisc(data, w, h, sensitivity);
+    else if (state.visual === 'triangles') drawTriangles(data, w, h, sensitivity);
+    else if (state.visual === 'mirror') drawMirror(data, w, h, sensitivity);
     else drawBars(data, w, h, sensitivity);
     ctx2d.restore();
     if (state.fileName && !audio.paused) $('#visualStatus').textContent = 'Reproduzindo · ' + Math.round(average) + ' signal';
@@ -362,6 +380,21 @@
     ctx2d.beginPath(); ctx2d.arc(cx, cy, radius + 2, 0, Math.PI * 2); ctx2d.stroke();
     ctx2d.restore();
   }
+  function drawDisc(data, w, h, sensitivity) {
+    drawBars(data, w, h, sensitivity);
+    const palette = currentPalette(); const cx = w * .5, cy = h * .5; const r = Math.min(w,h) * .18; const t = performance.now() / 2400;
+    ctx2d.save(); ctx2d.translate(cx, cy); ctx2d.rotate(t + (state.visualRotation || 0) * Math.PI / 180); ctx2d.globalCompositeOperation = 'lighter';
+    ctx2d.strokeStyle = palette.highlight + '88'; ctx2d.lineWidth = 1;
+    for (let i=0;i<8;i++){ ctx2d.beginPath(); ctx2d.arc(0,0,r*(.35+i*.08),0,Math.PI*2); ctx2d.stroke(); }
+    ctx2d.fillStyle = palette.primary + '8a'; ctx2d.beginPath(); ctx2d.arc(0,0,r*.23,0,Math.PI*2); ctx2d.fill(); ctx2d.fillStyle = '#071015'; ctx2d.beginPath(); ctx2d.arc(0,0,r*.08,0,Math.PI*2); ctx2d.fill(); ctx2d.restore();
+  }
+  function drawTriangles(data, w, h, sensitivity) {
+    const palette=currentPalette(), cx=w*.5, cy=h*.5, base=Math.min(w,h)*.2, t=performance.now()/2800+(state.visualRotation||0)*Math.PI/180;
+    ctx2d.save(); ctx2d.translate(cx,cy); ctx2d.rotate(t); ctx2d.globalCompositeOperation='lighter';
+    for(let ring=0;ring<4;ring++){ const radius=base*(1+ring*.42); const value=(data[(ring*37)%data.length]||0)/255; ctx2d.strokeStyle=(ring%2?palette.secondary:palette.primary); ctx2d.globalAlpha=.45+value*.5; ctx2d.lineWidth=2+value*3; ctx2d.beginPath(); for(let i=0;i<3;i++){ const a=-Math.PI/2+i*Math.PI*2/3; const rr=radius*(.82+value*.22); const x=Math.cos(a)*rr,y=Math.sin(a)*rr; if(i===0)ctx2d.moveTo(x,y);else ctx2d.lineTo(x,y);} ctx2d.closePath();ctx2d.stroke(); }
+    ctx2d.restore();
+  }
+  function drawMirror(data,w,h,sensitivity){ const palette=currentPalette(), mid=h*.5, count=Math.min(64,Math.floor(state.barCount/2)), gap=w/(count*2+1), t=performance.now()/1800; ctx2d.save();ctx2d.globalCompositeOperation='lighter'; for(let i=0;i<count;i++){ const v=Math.pow((data[Math.floor(i*data.length/count)]||0)/255,.65), len=12+v*h*.38*sensitivity, x=gap*(i+1), hue=(i/count*260+t)%360, color=state.style==='mono'?palette.primary:`hsl(${hue} 90% 64%)`;ctx2d.fillStyle=color;ctx2d.globalAlpha=.35+v*.65;ctx2d.fillRect(w*.5+x,mid-len,Math.max(2,gap*.55),len);ctx2d.fillRect(w*.5-x-gap*.55,mid-len,Math.max(2,gap*.55),len);ctx2d.fillRect(w*.5+x,mid,Math.max(2,gap*.55),len);ctx2d.fillRect(w*.5-x-gap*.55,mid,Math.max(2,gap*.55),len);}ctx2d.restore(); }
   function drawWave(data, w, h, sensitivity) {
     const palette = currentPalette();
     ctx2d.lineWidth = 2; ctx2d.strokeStyle = palette.primary; ctx2d.shadowBlur = 18; ctx2d.shadowColor = palette.primary;
@@ -370,20 +403,21 @@
     ctx2d.stroke(); ctx2d.shadowBlur = 0;
     ctx2d.strokeStyle = palette.secondary + '55'; ctx2d.lineWidth = 1; ctx2d.beginPath(); ctx2d.moveTo(0,h*.5); ctx2d.lineTo(w,h*.5); ctx2d.stroke();
   }
-  function drawOrbit(data, w, h, sensitivity) {
+  function drawOrbit(data, w, h, sensitivity, particlesOnly = false) {
     const palette = currentPalette();
     const cx = w * (.5 + (state.pointer.x - .5) * .08), cy = h * (.5 + (state.pointer.y - .5) * .08);
     const radius = Math.min(w,h) * .22;
+    const rotation = performance.now() / 2400 + (state.visualRotation || 0) * Math.PI / 180;
     for (let i = 0; i < 72; i++) {
       const value = (data[Math.floor(i * data.length / 72)] || 0) / 255;
-      const angle = performance.now() / 3200 + i * Math.PI * 2 / 72;
+      const angle = rotation + i * Math.PI * 2 / 72;
       const r = radius + value * 70 * sensitivity;
       const x = cx + Math.cos(angle) * r, y = cy + Math.sin(angle) * r;
       ctx2d.fillStyle = i % 3 === 0 ? palette.highlight : (i % 2 ? palette.primary : palette.secondary);
       ctx2d.globalAlpha = .3 + value * .7;
       ctx2d.beginPath(); ctx2d.arc(x,y,2 + value * 4,0,Math.PI*2); ctx2d.fill();
     }
-    ctx2d.globalAlpha = 1; ctx2d.strokeStyle = '#5be6ed3f'; ctx2d.lineWidth = 1; ctx2d.beginPath(); ctx2d.arc(cx,cy,radius,0,Math.PI*2); ctx2d.stroke();
+    if (!particlesOnly) { ctx2d.globalAlpha = 1; ctx2d.strokeStyle = palette.primary + '55'; ctx2d.lineWidth = 1; ctx2d.beginPath(); ctx2d.arc(cx,cy,radius,0,Math.PI*2); ctx2d.stroke(); }
     ctx2d.fillStyle = palette.highlight; ctx2d.globalAlpha = .65; ctx2d.beginPath(); ctx2d.arc(cx,cy,3 + (data[2]||0)/60,0,Math.PI*2); ctx2d.fill(); ctx2d.globalAlpha = 1;
   }
   function downloadBlob(blob, name) {
@@ -603,16 +637,17 @@
     view.querySelectorAll('[data-action="open-studio"]').forEach(button => button.onclick = () => showSection('studio'));
     const search = view.querySelector('[data-library-search]');
     if (search) search.oninput = () => view.querySelectorAll('.library-card').forEach(card => card.hidden = !card.textContent.toLowerCase().includes(search.value.toLowerCase()));
-    view.querySelectorAll('[data-action="clear-session"]').forEach(button => $('#clearSession').click());
+    view.querySelectorAll('[data-action="clear-session"]').forEach(button => button.onclick = () => { $('#clearSession').click(); showSection('library'); });
     view.querySelectorAll('[data-action="presets"]').forEach(button => button.onclick = () => {
       const values = [{bass:5,treble:2,sensitivity:85,smooth:60},{bass:0,treble:4,sensitivity:65,smooth:82},{bass:8,treble:5,sensitivity:120,smooth:45}][Number(button.dataset.index)] || {};
       Object.entries(values).forEach(([id,value]) => { const input=$('#'+id); if(input){input.value=value;setControl(id,value);} }); showSection('studio'); toast('Preset aplicado.');
     });
-    view.querySelectorAll('[data-action="visualizers"]').forEach(button => button.onclick = () => { const modes=['bars','orbit','wave']; const mode=modes[Number(button.dataset.index)]||'bars'; state.visual=mode; document.querySelectorAll('[data-visual]').forEach(x=>x.classList.toggle('active',x.dataset.visual===mode)); showSection('studio'); toast('Visual ' + mode + ' selecionado.'); });
+    view.querySelectorAll('[data-action="visualizers"]').forEach(button => button.onclick = () => { const modes=['bars','disc','triangles','mirror','wave','particles']; const mode=modes[Number(button.dataset.index)]||'bars'; state.visual=mode; document.querySelectorAll('[data-visual]').forEach(x=>x.classList.toggle('active',x.dataset.visual===mode)); showSection('studio'); toast('Visual ' + mode + ' selecionado.'); });
     view.querySelectorAll('[data-action="mixer"]').forEach(button => button.onclick = () => { showSection('studio'); document.querySelector('.mixer-panel')?.scrollIntoView({behavior:'smooth',block:'center'}); });
   }
   function showSection(section) {
-    document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.section === section));
+    document.querySelectorAll('.nav-item').forEach(item => { const active = item.dataset.section === section; item.classList.toggle('active', active); item.setAttribute('aria-current', active ? 'page' : 'false'); });
+    if (!sectionData[section] && section !== 'studio') section = 'studio';
     $('#sectionTitle').textContent = section === 'studio' ? 'Studio' : sectionData[section].title;
     const studio = $('#studioSection'), bottom = document.querySelector('.bottom-grid'), info = document.querySelector('.info-strip');
     let view = $('#directoryView');
@@ -636,11 +671,12 @@
     $('#playBtn').onclick = togglePlay; audio.addEventListener('play', () => $('#playBtn').textContent = 'Ⅱ'); audio.addEventListener('pause', () => $('#playBtn').textContent = '▶');
     audio.addEventListener('loadedmetadata', () => { const time = $('.track-time'); if (time) time.textContent = formatTime(audio.duration); });
     $('#exportBtn').onclick = exportAudio; $('#cancelExportBtn')?.addEventListener('click', cancelExport); $('#resetControls').onclick = resetControls;
-    ['bass','treble','sensitivity','smooth'].forEach(id => $('#' + id).addEventListener('input', e => setControl(id, e.target.value)));
+    ['bass','treble','sensitivity','smooth','noiseReduction'].forEach(id => { const input = $('#' + id); if (input) input.addEventListener('input', e => setControl(id, e.target.value)); });
+    document.querySelectorAll('[data-eq]').forEach(input => input.addEventListener('input', e => setControl('eq' + e.target.dataset.eq, e.target.value)));
     $('#muteBtn').onclick = () => { state.muted = !state.muted; audio.muted = state.muted; $('#muteBtn').textContent = state.muted ? 'Unmute' : 'Mute'; };
     document.querySelectorAll('[data-visual]').forEach(btn => btn.onclick = () => { state.visual = btn.dataset.visual; document.querySelectorAll('[data-visual]').forEach(x => x.classList.toggle('active', x === btn)); });
     ['barCount','visualIntensity','visualRotation','visualOpacity','barPlacement'].forEach(id => { const input=$('#'+id); if(input){ input.value = id==='barCount'?state.barCount:id==='visualIntensity'?Math.round(state.visualIntensity*100):id==='visualRotation'?state.visualRotation:id==='visualOpacity'?Math.round(state.visualOpacity*100):state.barPlacement; input.addEventListener('input', e => setVisualSetting(id, e.target.value)); setVisualSetting(id,input.value); } });
-    document.querySelectorAll('.nav-item').forEach(item => item.onclick = () => { showSection(item.dataset.section); $('#sidebar').classList.remove('open'); });
+    document.querySelectorAll('.nav-item').forEach(item => item.onclick = (event) => { event.preventDefault(); showSection(item.dataset.section); $('#sidebar').classList.remove('open'); window.scrollTo({top:0,behavior:'smooth'}); });
     $('#menuToggle').onclick = () => $('#sidebar').classList.add('open'); $('#closeMenu').onclick = () => $('#sidebar').classList.remove('open');
     if ($('#googleLogin')) $('#googleLogin').onclick = (event) => { event.preventDefault(); window.location.assign('/login.html'); }; if ($('#avatar')) $('#avatar').onclick = (event) => { event.preventDefault(); window.location.assign('/login.html'); }; if ($('#closeModal')) $('#closeModal').onclick = closeLogin; $('#loginModal').onclick = e => { if (e.target.id === 'loginModal') closeLogin(); };
     const connectGoogle = $('#connectGoogle');
