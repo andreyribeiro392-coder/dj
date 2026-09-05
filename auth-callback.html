@@ -56,6 +56,7 @@
         if (!response.ok) throw new Error('userinfo');
         const profile = await response.json();
         if (!profile.email) throw new Error('email');
+        try { await fetch('/api/admin-session', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({accessToken: token})}); } catch (_) {}
         localStorage.setItem('aurora-google-email', profile.email);
         localStorage.setItem('aurora-auth-v3', '1');
         if (profile.name) localStorage.setItem('aurora-google-name', profile.name);
