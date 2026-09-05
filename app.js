@@ -121,6 +121,10 @@
       const file = typeof File === 'function' ? new File([record.audio], record.name, {type: record.type || 'audio/mpeg'}) : record.audio;
       if (!file.name) file.name = record.name;
       loadFile(file, {restored: true});
+      const imageRecord = await dbGet('background-image');
+      const videoRecord = await dbGet('background-video');
+      if (imageRecord?.blob) { const imageFile = typeof File === 'function' ? new File([imageRecord.blob], imageRecord.name || 'fundo.png', {type:imageRecord.type || imageRecord.blob.type}) : imageRecord.blob; setBackgroundImage(imageFile); }
+      else if (videoRecord?.blob) { const videoFile = typeof File === 'function' ? new File([videoRecord.blob], videoRecord.name || 'fundo.mp4', {type:videoRecord.type || videoRecord.blob.type}) : videoRecord.blob; setBackgroundVideo(videoFile); }
       toast('Sessão restaurada neste dispositivo.');
     } catch (_) {}
   }
@@ -519,6 +523,8 @@
       state.backgroundImage = image;
       const imagePreview = $('#bgImagePreview'); if (imagePreview) { imagePreview.src = state.backgroundUrl; imagePreview.hidden = false; }
       const preview = $('#bgVideoPreview'); if (preview) { preview.pause(); preview.removeAttribute('src'); preview.hidden = true; }
+      dbPut('background-image', {blob:file, name:file.name, type:file.type});
+      dbPut('background-video', null);
       updateBackgroundLabel('Imagem de fundo ativa · ' + file.name); toast('Imagem adicionada e visível no visualizador.');
     };
     image.onerror = () => toast('Não foi possível ler essa imagem.');
@@ -537,6 +543,8 @@
       video.play().catch(() => {});
       const preview = $('#bgVideoPreview'); if (preview) { preview.src = state.backgroundUrl; preview.hidden = false; preview.load(); }
       const imagePreview = $('#bgImagePreview'); if (imagePreview) { imagePreview.removeAttribute('src'); imagePreview.hidden = true; }
+      dbPut('background-video', {blob:file, name:file.name, type:file.type});
+      dbPut('background-image', null);
       updateBackgroundLabel('Vídeo de fundo ativo · ' + file.name); toast('Vídeo de fundo pronto para exportar.');
     }, {once:true});
     video.addEventListener('error', () => { setBusy($('#bgVideoInput'), false); toast('Seu navegador não conseguiu ler este vídeo. Tente MP4 ou WEBM.'); }, {once:true});
