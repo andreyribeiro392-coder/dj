@@ -62,6 +62,13 @@
           </div>
           <div class="panel visual-panel">
             <div class="panel-heading"><div><span class="kicker">02 · VISUALIZER</span><h2>Live spectrum</h2></div><div class="visual-tools"><button class="tiny active" data-visual="bars">Barras</button><button class="tiny" data-visual="orbit">Órbita</button><button class="tiny" data-visual="wave">Onda</button></div></div>
+            <div class="visual-settings" aria-label="Configurações do visualizador">
+              <label>Qtd. barras <output id="barCountValue">96</output><input id="barCount" type="range" min="32" max="128" step="8" value="96"></label>
+              <label>Intensidade <output id="visualIntensityValue">100%</output><input id="visualIntensity" type="range" min="40" max="160" value="100"></label>
+              <label>Rotação <output id="visualRotationValue">0°</output><input id="visualRotation" type="range" min="-180" max="180" value="0"></label>
+              <label>Opacidade <output id="visualOpacityValue">100%</output><input id="visualOpacity" type="range" min="20" max="100" value="100"></label>
+              <label>Posição das barras<select id="barPlacement"><option value="outside">Para fora</option><option value="inside">Para dentro</option><option value="both">Dos dois lados</option></select></label>
+            </div>
             <div class="canvas-wrap" id="canvasWrap"><canvas id="visualizer" aria-label="Visualizador de frequência"></canvas><div class="canvas-overlay"><span id="visualStatus">Aguardando áudio</span><span class="fps">60 FPS</span></div></div>
             <div class="now-playing"><div class="mini-cover">◒</div><div class="now-copy"><b id="nowTitle">Nenhuma faixa selecionada</b><small id="nowMeta">Importe um áudio para começar</small></div><button class="play-btn" id="playBtn" type="button" aria-label="Reproduzir">▶</button></div>
           </div>
@@ -79,11 +86,24 @@
           <div class="composition-grid">
             <label class="field-label">Formato do vídeo<select id="orientationSelect"><option value="portrait">Vertical · 9:16</option><option value="landscape">Horizontal · 16:9</option></select></label>
             <label class="field-label">Tipo de exportação<select id="exportFormat"><option value="webm">Vídeo WebM</option><option value="mp4">Vídeo MP4 (se compatível)</option><option value="mp3">Áudio MP3</option></select></label>
-            <label class="upload-mini">Imagem de fundo<input id="bgImageInput" type="file" accept="image/*"><span>JPG, PNG ou WEBP</span></label>
+            <label class="field-label">Nome do arquivo<input id="exportName" type="text" maxlength="80" placeholder="minha-visualizacao"></label>
+            <label class="field-label">Enquadramento<select id="backgroundFit"><option value="contain">Imagem inteira</option><option value="cover">Preencher tela</option></select></label>
+            <label class="upload-mini">Imagem de fundo<input id="bgImageInput" type="file" accept="image/*"><span>JPG, PNG ou WEBP · visualização imediata</span></label>
             <label class="upload-mini">Vídeo de fundo<input id="bgVideoInput" type="file" accept="video/*"><span>MP4 ou WEBM · até 100 MB</span></label>
           </div>
+          <div class="background-controls" aria-label="Ajustes do fundo">
+            <label>Opacidade <output id="bgOpacityValue">100%</output><input id="bgOpacity" type="range" min="0" max="100" value="100"></label>
+            <label>Zoom <output id="bgZoomValue">100%</output><input id="bgZoom" type="range" min="100" max="180" value="100"></label>
+            <label>Posição X <output id="bgXValue">0%</output><input id="bgX" type="range" min="-100" max="100" value="0"></label>
+            <label>Posição Y <output id="bgYValue">0%</output><input id="bgY" type="range" min="-100" max="100" value="0"></label>
+            <label>Brilho <output id="bgBrightnessValue">100%</output><input id="bgBrightness" type="range" min="50" max="160" value="100"></label>
+            <label>Contraste <output id="bgContrastValue">100%</output><input id="bgContrast" type="range" min="50" max="180" value="100"></label>
+            <label>Desfoque <output id="bgBlurValue">0px</output><input id="bgBlur" type="range" min="0" max="20" value="0"></label>
+            <label>Camada<select id="visualLayer"><option value="front">Visualização na frente</option><option value="back">Visualização suave</option></select></label>
+          </div>
           <div class="style-row"><span class="field-label">Estilo visual</span><div class="style-options"><button class="style-chip active" data-style="aurora" type="button">Aurora</button><button class="style-chip" data-style="ember" type="button">Ember</button><button class="style-chip" data-style="violet" type="button">Violet</button><button class="style-chip" data-style="mono" type="button">Mono</button></div><label class="color-picker" title="Cor principal"><input id="accentColor" type="color" value="#5be6ed"></label></div>
-          <p class="composition-note" id="backgroundInfo">Sem fundo extra · o visualizador usa o tema selecionado.</p><video id="bgVideoPreview" class="background-preview" controls playsinline hidden></video>
+          <p class="composition-note" id="backgroundInfo">Sem fundo extra · o visualizador usa o tema selecionado.</p>
+          <div class="background-preview-wrap"><img id="bgImagePreview" class="background-preview" alt="Prévia da imagem de fundo" hidden><video id="bgVideoPreview" class="background-preview" controls playsinline hidden></video></div>
         </section>
         <section class="bottom-grid">
           <div class="panel queue-panel"><div class="panel-heading"><div><span class="kicker">QUEUE</span><h2>Sua sessão</h2></div><button class="text-btn" id="clearSession">Limpar</button></div><div id="queue" class="queue-empty"><span>◌</span><p>Suas faixas aparecem aqui<br><small>Importe um áudio para montar sua sessão.</small></p></div></div>
