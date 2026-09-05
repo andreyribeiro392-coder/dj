@@ -18,7 +18,10 @@
       if (window.AURORA_AUTH_REQUIRED && isApp && !signedIn) window.location.replace('/login.html');
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=20260905-ui-v9">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=20260905-studio-v10">
 </head>
 <body>
   <div class="liquid liquid-a"></div><div class="liquid liquid-b"></div><div class="grid-glow"></div>
@@ -50,8 +53,9 @@
         <div class="top-actions"><span class="secured">● Processamento local</span><span class="avatar" id="avatar" aria-label="Sessão local">A</span></div>
       </header>
       <div class="content">
-        <section class="welcome-row">
-          <div><p class="eyebrow">ESTÚDIO AUDIOVISUAL</p><h1>Dê forma ao seu <em>som.</em></h1><p class="subtitle">Crie visualizações envolventes, ajuste o áudio e exporte sua faixa em um único espaço.</p></div>
+        <section class="welcome-row project-command">
+          <div class="project-title"><p class="eyebrow"><span class="project-pulse"></span> PROJETO ATUAL</p><h1>Aurora <em>Session</em></h1><p class="subtitle">Visualizador de áudio e editor de vídeo</p></div>
+          <div class="project-actions"><button class="secondary-btn" id="quickScene" type="button">Ajustar cena</button><button class="primary-btn" id="quickImport" type="button"><span>＋</span> Adicionar áudio</button></div>
           <div class="quota"><div><span>FREE PLAN</span><b id="quotaText">2 / 2 uploads</b></div><div class="quota-bar"><i id="quotaBar"></i></div><small>Limites renovados no próximo ciclo</small></div>
         </section>
         <section class="studio-grid" id="studioSection">
@@ -65,7 +69,7 @@
             <audio id="audio" controls preload="metadata"></audio>
           </div>
           <div class="panel visual-panel">
-            <div class="panel-heading"><div><span class="kicker">02 · VISUALIZADOR</span><h2>Espectro ao vivo</h2></div><div class="visual-tools"><button class="tiny active" data-visual="bars" title="Barras radiais">Barras</button><button class="tiny" data-visual="disc" title="Disco giratório">Disco</button><button class="tiny" data-visual="triangles" title="Triângulos luminosos">Triângulos</button><button class="tiny" data-visual="mirror" title="Espectro espelhado">Espelho</button><button class="tiny" data-visual="wave" title="Onda de áudio">Onda</button><button class="tiny" data-visual="particles" title="Partículas">Partículas</button></div></div>
+            <div class="panel-heading"><div><span class="kicker">02 · PALCO VISUAL</span><h2>Composição ao vivo</h2></div><div class="visual-tools"><button class="tiny active" data-visual="bars" title="Barras radiais">Barras</button><button class="tiny" data-visual="disc" title="Disco giratório">Disco</button><button class="tiny" data-visual="triangles" title="Triângulos luminosos">Triângulos</button><button class="tiny" data-visual="mirror" title="Espectro espelhado">Espelho</button><button class="tiny" data-visual="wave" title="Onda de áudio">Onda</button><button class="tiny" data-visual="particles" title="Partículas">Partículas</button></div></div>
             <div class="visual-settings" aria-label="Configurações do visualizador">
               <label>Qtd. barras <output id="barCountValue">96</output><input id="barCount" type="range" min="32" max="128" step="8" value="96"></label>
               <label>Intensidade <output id="visualIntensityValue">100%</output><input id="visualIntensity" type="range" min="40" max="160" value="100"></label>
@@ -110,8 +114,8 @@
           <div class="background-preview-wrap"><img id="bgImagePreview" class="background-preview" alt="Prévia da imagem de fundo" hidden><video id="bgVideoPreview" class="background-preview" controls playsinline hidden></video></div>
         </section>
         <section class="bottom-grid">
-          <div class="panel queue-panel"><div class="panel-heading"><div><span class="kicker">QUEUE</span><h2>Sua sessão</h2></div><button class="text-btn" id="clearSession">Limpar</button></div><div id="queue" class="queue-empty"><span>◌</span><p>Suas faixas aparecem aqui<br><small>Importe um áudio para montar sua sessão.</small></p></div></div>
-          <div class="panel export-panel"><div class="panel-heading"><div><span class="kicker">DELIVERY</span><h2>Exportar resultado</h2></div><span class="export-count" id="exportCount">0 / 2</span></div><p>Exporte o áudio com os ajustes do mixer aplicados. O arquivo é processado localmente.</p><button class="primary-btn" id="exportBtn" disabled><span>↗</span> Exportar áudio <b>⌘ E</b></button><button class="secondary-btn" id="cancelExportBtn" type="button" hidden>Cancelar exportação</button><div class="export-progress" id="exportProgress" hidden><span><i id="exportProgressBar"></i></span><b id="exportProgressText">0%</b></div><small class="privacy-note">O modo Free permite 2 exportações.</small><div class="export-meta" id="exportMeta">Nenhum arquivo pronto para exportar.</div><div class="export-history" id="exportHistory" aria-live="polite"><span class="history-empty">Nenhuma exportação nesta sessão.</span></div><video id="exportPreview" class="export-preview" controls playsinline hidden></video></div>
+          <div class="panel queue-panel"><div class="panel-heading"><div><span class="kicker">05 · FILA</span><h2>Sua sessão</h2></div><button class="text-btn" id="clearSession">Limpar</button></div><div id="queue" class="queue-empty"><span>◌</span><p>Suas faixas aparecem aqui<br><small>Importe um áudio para montar sua sessão.</small></p></div></div>
+          <div class="panel export-panel"><div class="panel-heading"><div><span class="kicker">06 · SAÍDA</span><h2>Exportar resultado</h2></div><span class="export-count" id="exportCount">0 / 2</span></div><p>Exporte o áudio com os ajustes do mixer aplicados. O arquivo é processado localmente.</p><button class="primary-btn" id="exportBtn" disabled><span>↗</span> Exportar áudio <b>⌘ E</b></button><button class="secondary-btn" id="cancelExportBtn" type="button" hidden>Cancelar exportação</button><div class="export-progress" id="exportProgress" hidden><span><i id="exportProgressBar"></i></span><b id="exportProgressText">0%</b></div><small class="privacy-note">O modo Free permite 2 exportações.</small><div class="export-meta" id="exportMeta">Nenhum arquivo pronto para exportar.</div><div class="export-history" id="exportHistory" aria-live="polite"><span class="history-empty">Nenhuma exportação nesta sessão.</span></div><video id="exportPreview" class="export-preview" controls playsinline hidden></video></div>
         </section>
         <section class="info-strip"><span class="info-icon">i</span><p><b>Privacidade por padrão.</b> Seus arquivos não saem do navegador. APIs de login e recursos extras podem ser conectados depois.</p><button class="text-btn" id="learnMore">Como funciona ›</button></section>
       </div>
@@ -120,7 +124,7 @@
   <div class="toast" id="toast" role="status"></div>
   <div id="loginModal" hidden aria-hidden="true"><span id="loginStatus"></span><button id="connectGoogle" type="button"></button><button id="closeModal" type="button"></button></div>
   <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
-  <script src="config.js?v=20260904-redirect"></script><script src="app.js?v=20260905-remake-v3"></script>
+  <script src="config.js?v=20260904-redirect"></script><script src="app.js?v=20260905-studio-v4"></script>
   <script>
     (() => {
       const go = (event) => { if (event) event.preventDefault(); window.location.assign('/login.html'); };
