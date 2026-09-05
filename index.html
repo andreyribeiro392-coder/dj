@@ -14,13 +14,13 @@
       if (isApp && !signedIn) window.location.replace('/login.html');
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=20260905-complete-v1">
+  <link rel="stylesheet" href="styles.css?v=20260905-premium-v1">
 </head>
 <body>
   <div class="liquid liquid-a"></div><div class="liquid liquid-b"></div><div class="grid-glow"></div>
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
-      <div class="brand"><span class="brand-mark">◒</span><span><strong>AURORA</strong><small>DJ STUDIO</small></span></div>
+      <div class="brand"><span class="brand-mark" aria-hidden="true">◎</span><span><strong>AURORA</strong><small>DJ STUDIO</small></span></div>
       <button class="close-menu" id="closeMenu" aria-label="Fechar menu">×</button>
       <nav class="nav" aria-label="Navegação principal">
         <p class="nav-label">WORKSPACE</p>
@@ -57,11 +57,11 @@
               <div class="drop-icon">↑</div><strong>Solte seu áudio aqui</strong><span>ou escolha um arquivo do dispositivo</span><button class="outline-btn" id="chooseFile" type="button">Selecionar arquivo</button><small>MP3, WAV, OGG · até 100 MB</small>
               <input id="fileInput" type="file" accept="audio/*" hidden>
             </div>
-            <div class="track-info empty" id="trackInfo"><div class="track-art">♪</div><div><b>Nenhuma faixa carregada</b><small>Seu áudio fica somente neste dispositivo</small></div><span class="track-time">—</span></div>
+            <div class="track-info empty" id="trackInfo"><div class="track-art">◎</div><div><b>Nenhuma faixa carregada</b><small>Seu áudio fica somente neste dispositivo</small></div><span class="track-time">—</span></div>
             <audio id="audio" controls preload="metadata"></audio>
           </div>
           <div class="panel visual-panel">
-            <div class="panel-heading"><div><span class="kicker">02 · VISUALIZER</span><h2>Live spectrum</h2></div><div class="visual-tools"><button class="tiny active" data-visual="bars">Barras</button><button class="tiny" data-visual="orbit">Órbita</button><button class="tiny" data-visual="wave">Onda</button></div></div>
+            <div class="panel-heading"><div><span class="kicker">02 · VISUALIZER</span><h2>Live spectrum</h2></div><div class="visual-tools"><button class="tiny active" data-visual="bars" title="Barras radiais">Barras</button><button class="tiny" data-visual="disc" title="Disco giratório">Disco</button><button class="tiny" data-visual="triangles" title="Triângulos luminosos">Triângulos</button><button class="tiny" data-visual="mirror" title="Espectro espelhado">Espelho</button><button class="tiny" data-visual="wave" title="Onda de áudio">Onda</button><button class="tiny" data-visual="particles" title="Partículas">Partículas</button></div></div>
             <div class="visual-settings" aria-label="Configurações do visualizador">
               <label>Qtd. barras <output id="barCountValue">96</output><input id="barCount" type="range" min="32" max="128" step="8" value="96"></label>
               <label>Intensidade <output id="visualIntensityValue">100%</output><input id="visualIntensity" type="range" min="40" max="160" value="100"></label>
@@ -70,14 +70,14 @@
               <label>Posição das barras<select id="barPlacement"><option value="outside">Para fora</option><option value="inside">Para dentro</option><option value="both">Dos dois lados</option></select></label>
             </div>
             <div class="canvas-wrap" id="canvasWrap"><canvas id="visualizer" aria-label="Visualizador de frequência"></canvas><div class="canvas-overlay"><span id="visualStatus">Aguardando áudio</span><span class="fps">60 FPS</span></div></div>
-            <div class="now-playing"><div class="mini-cover">◒</div><div class="now-copy"><b id="nowTitle">Nenhuma faixa selecionada</b><small id="nowMeta">Importe um áudio para começar</small></div><button class="play-btn" id="playBtn" type="button" aria-label="Reproduzir">▶</button></div>
+            <div class="now-playing"><div class="mini-cover">◎</div><div class="now-copy"><b id="nowTitle">Nenhuma faixa selecionada</b><small id="nowMeta">Importe um áudio para começar</small></div><button class="play-btn" id="playBtn" type="button" aria-label="Reproduzir">▶</button></div>
           </div>
           <div class="panel mixer-panel">
             <div class="panel-heading"><div><span class="kicker">03 · MIXER</span><h2>Sound controls</h2></div><button class="reset-btn" id="resetControls">Reset</button></div>
             <div class="control"><div class="control-label"><span>Graves</span><b id="bassValue">+0 dB</b></div><input id="bass" type="range" min="-12" max="12" value="0"><div class="range-hints"><span>-12</span><span>0</span><span>+12</span></div></div>
             <div class="control"><div class="control-label"><span>Agudos</span><b id="trebleValue">+0 dB</b></div><input id="treble" type="range" min="-12" max="12" value="0"><div class="range-hints"><span>-12</span><span>0</span><span>+12</span></div></div>
             <div class="control"><div class="control-label"><span>Sensibilidade</span><b id="sensitivityValue">70%</b></div><input id="sensitivity" type="range" min="20" max="140" value="70"><div class="range-hints"><span>Suave</span><span>Intenso</span></div></div>
-            <div class="control"><div class="control-label"><span>Suavização</span><b id="smoothValue">70%</b></div><input id="smooth" type="range" min="0" max="95" value="70"><div class="range-hints"><span>Rápida</span><span>Fluida</span></div></div>
+            <div class="control"><div class="control-label"><span>Suavização</span><b id="smoothValue">70%</b></div><input id="smooth" type="range" min="0" max="95" value="70"><div class="range-hints"><span>Rápida</span><span>Fluida</span></div></div><div class="equalizer" aria-label="Equalizador de 8 bandas"><div class="equalizer-head"><span>Equalizador</span><small>8 bandas</small></div><div class="eq-sliders"><label title="60 Hz"><output id="eq60Value">0 dB</output><input id="eq60" data-eq="60" type="range" min="-12" max="12" value="0" aria-label="60 Hz"><span>60 Hz</span></label><label title="170 Hz"><output id="eq170Value">0 dB</output><input id="eq170" data-eq="170" type="range" min="-12" max="12" value="0" aria-label="170 Hz"><span>170 Hz</span></label><label title="310 Hz"><output id="eq310Value">0 dB</output><input id="eq310" data-eq="310" type="range" min="-12" max="12" value="0" aria-label="310 Hz"><span>310 Hz</span></label><label title="600 Hz"><output id="eq600Value">0 dB</output><input id="eq600" data-eq="600" type="range" min="-12" max="12" value="0" aria-label="600 Hz"><span>600 Hz</span></label><label title="1.2 kHz"><output id="eq1200Value">0 dB</output><input id="eq1200" data-eq="1200" type="range" min="-12" max="12" value="0" aria-label="1.2 kHz"><span>1.2 kHz</span></label><label title="3 kHz"><output id="eq3000Value">0 dB</output><input id="eq3000" data-eq="3000" type="range" min="-12" max="12" value="0" aria-label="3 kHz"><span>3 kHz</span></label><label title="8 kHz"><output id="eq8000Value">0 dB</output><input id="eq8000" data-eq="8000" type="range" min="-12" max="12" value="0" aria-label="8 kHz"><span>8 kHz</span></label><label title="14 kHz"><output id="eq14000Value">0 dB</output><input id="eq14000" data-eq="14000" type="range" min="-12" max="12" value="0" aria-label="14 kHz"><span>14 kHz</span></label></div></div><div class="control"><div class="control-label"><span>Redução de ruído</span><b id="noiseReductionValue">0%</b></div><input id="noiseReduction" type="range" min="0" max="70" value="0"><div class="range-hints"><span>Original</span><span>Mais limpo</span></div></div>
             <div class="mixer-footer"><span><i class="signal"></i> Audio engine ready</span><button class="ghost-btn" id="muteBtn">Mute</button></div>
           </div>
         </section>
@@ -116,7 +116,7 @@
   <div class="toast" id="toast" role="status"></div>
   <div id="loginModal" hidden aria-hidden="true"><span id="loginStatus"></span><button id="connectGoogle" type="button"></button><button id="closeModal" type="button"></button></div>
   <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
-  <script src="config.js?v=20260904-redirect"></script><script src="app.js?v=20260905-complete-v1"></script>
+  <script src="config.js?v=20260904-redirect"></script><script src="app.js?v=20260905-premium-v1"></script>
   <script>
     (() => {
       const go = (event) => { if (event) event.preventDefault(); window.location.assign('/login.html'); };
