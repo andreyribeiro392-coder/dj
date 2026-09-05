@@ -644,6 +644,7 @@
     });
     view.querySelectorAll('[data-action="visualizers"]').forEach(button => button.onclick = () => { const modes=['bars','disc','triangles','mirror','wave','particles']; const mode=modes[Number(button.dataset.index)]||'bars'; state.visual=mode; document.querySelectorAll('[data-visual]').forEach(x=>x.classList.toggle('active',x.dataset.visual===mode)); showSection('studio'); toast('Visual ' + mode + ' selecionado.'); });
     view.querySelectorAll('[data-action="mixer"]').forEach(button => button.onclick = () => { showSection('studio'); document.querySelector('.mixer-panel')?.scrollIntoView({behavior:'smooth',block:'center'}); });
+    view.querySelectorAll('[data-action="settings"]').forEach(button => button.onclick = () => { showSection('studio'); document.querySelector('#compositionPanel')?.scrollIntoView({behavior:'smooth',block:'center'}); toast('Preferências abertas no Studio.'); });
   }
   function showSection(section) {
     document.querySelectorAll('.nav-item').forEach(item => { const active = item.dataset.section === section; item.classList.toggle('active', active); item.setAttribute('aria-current', active ? 'page' : 'false'); });
