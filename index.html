@@ -62,7 +62,7 @@
           </div>
           <div class="panel visual-panel">
             <div class="panel-heading"><div><span class="kicker">02 · VISUALIZER</span><h2>Live spectrum</h2></div><div class="visual-tools"><button class="tiny active" data-visual="bars">Barras</button><button class="tiny" data-visual="orbit">Órbita</button><button class="tiny" data-visual="wave">Onda</button></div></div>
-            <div class="canvas-wrap"><canvas id="visualizer" aria-label="Visualizador de frequência"></canvas><div class="canvas-overlay"><span id="visualStatus">Aguardando áudio</span><span class="fps">60 FPS</span></div></div>
+            <div class="canvas-wrap" id="canvasWrap"><canvas id="visualizer" aria-label="Visualizador de frequência"></canvas><div class="canvas-overlay"><span id="visualStatus">Aguardando áudio</span><span class="fps">60 FPS</span></div></div>
             <div class="now-playing"><div class="mini-cover">◒</div><div class="now-copy"><b id="nowTitle">Nenhuma faixa selecionada</b><small id="nowMeta">Importe um áudio para começar</small></div><button class="play-btn" id="playBtn" type="button" aria-label="Reproduzir">▶</button></div>
           </div>
           <div class="panel mixer-panel">
@@ -74,6 +74,17 @@
             <div class="mixer-footer"><span><i class="signal"></i> Audio engine ready</span><button class="ghost-btn" id="muteBtn">Mute</button></div>
           </div>
         </section>
+        <section class="panel composition-panel" id="compositionPanel">
+          <div class="panel-heading"><div><span class="kicker">04 · COMPOSITION</span><h2>Fundo e exportação</h2></div><span class="status-chip">LOCAL</span></div>
+          <div class="composition-grid">
+            <label class="field-label">Formato do vídeo<select id="orientationSelect"><option value="portrait">Vertical · 9:16</option><option value="landscape">Horizontal · 16:9</option></select></label>
+            <label class="field-label">Tipo de exportação<select id="exportFormat"><option value="webm">Vídeo WebM</option><option value="mp4">Vídeo MP4 (se compatível)</option><option value="mp3">Áudio MP3</option></select></label>
+            <label class="upload-mini">Imagem de fundo<input id="bgImageInput" type="file" accept="image/*"><span>JPG, PNG ou WEBP</span></label>
+            <label class="upload-mini">Vídeo de fundo<input id="bgVideoInput" type="file" accept="video/*"><span>MP4 ou WEBM · até 100 MB</span></label>
+          </div>
+          <div class="style-row"><span class="field-label">Estilo visual</span><div class="style-options"><button class="style-chip active" data-style="aurora" type="button">Aurora</button><button class="style-chip" data-style="ember" type="button">Ember</button><button class="style-chip" data-style="violet" type="button">Violet</button><button class="style-chip" data-style="mono" type="button">Mono</button></div><label class="color-picker" title="Cor principal"><input id="accentColor" type="color" value="#5be6ed"></label></div>
+          <p class="composition-note" id="backgroundInfo">Sem fundo extra · o visualizador usa o tema selecionado.</p>
+        </section>
         <section class="bottom-grid">
           <div class="panel queue-panel"><div class="panel-heading"><div><span class="kicker">QUEUE</span><h2>Sua sessão</h2></div><button class="text-btn" id="clearSession">Limpar</button></div><div id="queue" class="queue-empty"><span>◌</span><p>Suas faixas aparecem aqui<br><small>Importe um áudio para montar sua sessão.</small></p></div></div>
           <div class="panel export-panel"><div class="panel-heading"><div><span class="kicker">DELIVERY</span><h2>Exportar resultado</h2></div><span class="export-count" id="exportCount">0 / 2</span></div><p>Exporte o áudio com os ajustes do mixer aplicados. O arquivo é processado localmente.</p><button class="primary-btn" id="exportBtn" disabled><span>↗</span> Exportar áudio <b>⌘ E</b></button><small class="privacy-note">O modo Free permite 2 exportações.</small></div>
@@ -84,6 +95,7 @@
   </div>
   <div class="toast" id="toast" role="status"></div>
   <div id="loginModal" hidden aria-hidden="true"><span id="loginStatus"></span><button id="connectGoogle" type="button"></button><button id="closeModal" type="button"></button></div>
+  <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
   <script src="config.js?v=20260904-redirect"></script><script src="app.js?v=20260904-login-v4"></script>
   <script>
     (() => {
