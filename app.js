@@ -30,7 +30,8 @@
     backgroundVideo: null,
     backgroundUrl: '',
     exportHistory: (() => { try { return JSON.parse(localStorage.getItem('aurora-export-history') || '[]'); } catch { return []; } })(),
-    lastExportUrl: ''
+    lastExportUrl: '',
+    isAdmin: false
   };
   const maxUploads = 2;
   const maxExports = 2;
@@ -73,11 +74,11 @@
     const quota = $('#quotaText');
     const bar = $('#quotaBar');
     const summary = $('#planSummary');
-    if (quota) quota.textContent = (maxUploads - state.uploads) + ' / ' + maxUploads + ' uploads';
-    if (bar) bar.style.width = Math.min(100, (state.uploads / maxUploads) * 100) + '%';
-    if (summary) summary.textContent = (maxUploads - state.uploads) + ' uploads · ' + (maxExports - state.exports) + ' exports';
-    $('#exportCount').textContent = state.exports + ' / ' + maxExports;
-    $('#exportBtn').disabled = !state.fileName || state.exports >= maxExports;
+    if (quota) quota.textContent = state.isAdmin ? 'ACESSO ILIMITADO' : (maxUploads - state.uploads) + ' / ' + maxUploads + ' uploads';
+    if (bar) { bar.style.width = state.isAdmin ? '100%' : Math.min(100, (state.uploads / maxUploads) * 100) + '%'; bar.classList.toggle('unlimited', state.isAdmin); }
+    if (summary) summary.textContent = state.isAdmin ? 'Admin · acesso completo' : (maxUploads - state.uploads) + ' uploads · ' + (maxExports - state.exports) + ' exports';
+    $('#exportCount').textContent = state.isAdmin ? 'ILIMITADO' : state.exports + ' / ' + maxExports;
+    $('#exportBtn').disabled = !state.fileName || (!state.isAdmin && state.exports >= maxExports);
   }
   function setupAudioGraph() {
     if (state.audioContext) return;
@@ -98,7 +99,7 @@
   }
   function loadFile(file) {
     if (!file || !file.type.startsWith('audio/')) { toast('Escolha um arquivo de áudio válido.'); return; }
-    if (state.uploads >= maxUploads) { toast('Limite Free atingido: 2 uploads.'); return; }
+    if (!state.isAdmin && state.uploads >= maxUploads) { toast('Limite Free atingido: 2 uploads.'); return; }
     if (file.size > 100 * 1024 * 1024) { toast('Esse arquivo ultrapassa o limite de 100 MB.'); return; }
     if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
     state.objectUrl = URL.createObjectURL(file);
@@ -236,6 +237,14 @@
     link.href = url; link.download = name; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  async function checkAdminAccess() {
+    try {
+      const response = await fetch('/api/admin-session', {credentials:'same-origin', cache:'no-store'});
+      const data = await response.json();
+      state.isAdmin = data.admin === true;
+      updateQuota();
+    } catch (_) {}
+  }
   function renderExportHistory() {
     const node = $('#exportHistory');
     if (!node) return;
@@ -330,7 +339,7 @@
   }
   async function exportAudio() {
     if (!state.fileName) { toast('Importe um áudio antes de exportar.'); return; }
-    if (state.exports >= maxExports) { toast('Limite Free atingido: 2 exportações.'); return; }
+    if (!state.isAdmin && state.exports >= maxExports) { toast('Limite Free atingido: 2 exportações.'); return; }
     const button = $('#exportBtn');
     button.disabled = true;
     button.textContent = 'Processando...';
@@ -475,5 +484,5 @@
   }
   const savedEmail = localStorage.getItem('aurora-google-email');
   if (savedEmail) $('#avatar').textContent = savedEmail.charAt(0).toUpperCase();
-  updateExportButton(); updateQuota(); renderExportHistory(); setupEvents(); resizeCanvas(); drawVisualizer();
+  updateExportButton(); updateQuota(); renderExportHistory(); setupEvents(); checkAdminAccess(); resizeCanvas(); drawVisualizer();
 })();
