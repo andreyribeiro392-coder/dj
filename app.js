@@ -290,7 +290,7 @@
     const dx = (w - dw) / 2 + state.bgX / 100 * w * .45;
     const dy = (h - dh) / 2 + state.bgY / 100 * h * .45;
     ctx2d.save();
-    if (media === state.defaultArtwork) { ctx2d.translate(w / 2, h / 2); ctx2d.rotate(performance.now() / 24000); ctx2d.translate(-w / 2, -h / 2); }
+    if (media === state.defaultArtwork) { ctx2d.translate(w / 2, h / 2); ctx2d.rotate(performance.now() / 60000); ctx2d.translate(-w / 2, -h / 2); }
     ctx2d.globalAlpha = state.bgOpacity;
     ctx2d.filter = 'brightness(' + state.bgBrightness + '%) contrast(' + state.bgContrast + '%) blur(' + state.bgBlur + 'px)';
     ctx2d.fillStyle = '#03070b';
