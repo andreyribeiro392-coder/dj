@@ -20,10 +20,27 @@
     muted: false,
     visual: 'bars',
     pointer: { x: .5, y: .5 },
-    fileName: ''
+    fileName: '',
+    orientation: 'portrait',
+    exportFormat: 'webm',
+    style: 'aurora',
+    accent: '#5be6ed',
+    backgroundImage: null,
+    backgroundVideo: null,
+    backgroundUrl: ''
   };
   const maxUploads = 2;
   const maxExports = 2;
+  const stylePresets = {
+    aurora: { primary: '#5be6ed', secondary: '#6e8cff', highlight: '#c8f36d' },
+    ember: { primary: '#ff9966', secondary: '#ff4d7d', highlight: '#ffd166' },
+    violet: { primary: '#c7a6ff', secondary: '#7c6cff', highlight: '#f0d7ff' },
+    mono: { primary: '#e8f1f2', secondary: '#7f9297', highlight: '#ffffff' }
+  };
+  function currentPalette() {
+    const preset = stylePresets[state.style] || stylePresets.aurora;
+    return { primary: state.accent || preset.primary, secondary: preset.secondary, highlight: preset.highlight };
+  }
   const sectionData = {
     library: {eyebrow:'WORKSPACE / LIBRARY', title:'Biblioteca', text:'Organize suas faixas e mantenha tudo pronto para a próxima sessão.', cards:[['Arquivos locais','Seus áudios ficam neste dispositivo. Nenhum arquivo é enviado automaticamente.','◫'],['Sessões recentes','Reabra uma sessão e continue de onde parou.','↺'],['Busca rápida','Encontre uma faixa pelo nome em poucos segundos.','⌕']]},
     visualizers: {eyebrow:'WORKSPACE / VISUALIZERS', title:'Visualizadores', text:'Escolha uma leitura visual para cada momento da sua música.', cards:[['Spectrum bars','Barras que respondem aos graves e agudos em tempo real.','▥'],['Orbit field','Partículas orbitais com movimento suave e profundo.','◌'],['Waveform','Onda contínua para acompanhar a dinâmica da faixa.','〰']]},
@@ -126,12 +143,32 @@
     canvas.height = Math.max(1, Math.floor(rect.height * ratio));
     ctx2d.setTransform(ratio, 0, 0, ratio, 0, 0);
   }
+  function drawMediaCover(media, w, h) {
+    const mw = media.videoWidth || media.naturalWidth || 1;
+    const mh = media.videoHeight || media.naturalHeight || 1;
+    const scale = Math.max(w / mw, h / mh);
+    const dw = mw * scale, dh = mh * scale;
+    ctx2d.drawImage(media, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  }
+  function drawBackground(w, h) {
+    if (state.backgroundVideo && state.backgroundVideo.readyState >= 2) {
+      drawMediaCover(state.backgroundVideo, w, h);
+      ctx2d.fillStyle = '#05090dcc';
+      ctx2d.fillRect(0, 0, w, h);
+    } else if (state.backgroundImage && state.backgroundImage.complete) {
+      drawMediaCover(state.backgroundImage, w, h);
+      ctx2d.fillStyle = '#05090dcc';
+      ctx2d.fillRect(0, 0, w, h);
+    }
+  }
   function drawVisualizer() {
     const rect = canvas.getBoundingClientRect();
     const w = rect.width, h = rect.height;
     ctx2d.clearRect(0, 0, w, h);
+    drawBackground(w, h);
+    const palette = currentPalette();
     const gradient = ctx2d.createRadialGradient(w * (.45 + (state.pointer.x - .5) * .12), h * (.46 + (state.pointer.y - .5) * .12), 8, w * .5, h * .5, Math.max(w, h) * .66);
-    gradient.addColorStop(0, '#163e4b'); gradient.addColorStop(.45, '#0b202c'); gradient.addColorStop(1, '#071015');
+    gradient.addColorStop(0, palette.primary + '44'); gradient.addColorStop(.45, '#0b202cee'); gradient.addColorStop(1, '#071015f5');
     ctx2d.fillStyle = gradient; ctx2d.fillRect(0, 0, w, h);
     const data = state.analyser ? new Uint8Array(state.analyser.frequencyBinCount) : new Uint8Array(128);
     if (state.analyser) state.analyser.getByteFrequencyData(data);
@@ -152,7 +189,7 @@
       const height = Math.max(3, value * h * .55 * sensitivity);
       const x = 21 + i * (width + gap);
       const g = ctx2d.createLinearGradient(0, base - height, 0, base);
-      g.addColorStop(0, '#c8f36d'); g.addColorStop(.5, '#5be6ed'); g.addColorStop(1, '#6e8cff');
+      g.addColorStop(0, palette.highlight); g.addColorStop(.5, palette.primary); g.addColorStop(1, palette.secondary);
       ctx2d.fillStyle = g; ctx2d.globalAlpha = .35 + value * .65;
       ctx2d.beginPath(); ctx2d.roundRect(x, base - height, width, height, 4); ctx2d.fill();
     }
@@ -160,11 +197,11 @@
     ctx2d.strokeStyle = '#5be6ed28'; ctx2d.lineWidth = 1; ctx2d.beginPath(); ctx2d.moveTo(20, base + 1); ctx2d.lineTo(w - 20, base + 1); ctx2d.stroke();
   }
   function drawWave(data, w, h, sensitivity) {
-    ctx2d.lineWidth = 2; ctx2d.strokeStyle = '#5be6ed'; ctx2d.shadowBlur = 18; ctx2d.shadowColor = '#5be6ed';
+    ctx2d.lineWidth = 2; ctx2d.strokeStyle = palette.primary; ctx2d.shadowBlur = 18; ctx2d.shadowColor = palette.primary;
     ctx2d.beginPath();
     for (let i = 0; i < 128; i++) { const x = i / 127 * w; const v = ((data[i] || 0) / 255 - .5) * h * .55 * sensitivity; const y = h * .5 + v; if (i === 0) ctx2d.moveTo(x,y); else ctx2d.lineTo(x,y); }
     ctx2d.stroke(); ctx2d.shadowBlur = 0;
-    ctx2d.strokeStyle = '#6e8cff55'; ctx2d.lineWidth = 1; ctx2d.beginPath(); ctx2d.moveTo(0,h*.5); ctx2d.lineTo(w,h*.5); ctx2d.stroke();
+    ctx2d.strokeStyle = palette.secondary + '55'; ctx2d.lineWidth = 1; ctx2d.beginPath(); ctx2d.moveTo(0,h*.5); ctx2d.lineTo(w,h*.5); ctx2d.stroke();
   }
   function drawOrbit(data, w, h, sensitivity) {
     const cx = w * (.5 + (state.pointer.x - .5) * .08), cy = h * (.5 + (state.pointer.y - .5) * .08);
@@ -174,31 +211,96 @@
       const angle = performance.now() / 3200 + i * Math.PI * 2 / 72;
       const r = radius + value * 70 * sensitivity;
       const x = cx + Math.cos(angle) * r, y = cy + Math.sin(angle) * r;
-      ctx2d.fillStyle = i % 3 === 0 ? '#c8f36d' : (i % 2 ? '#5be6ed' : '#6e8cff');
+      ctx2d.fillStyle = i % 3 === 0 ? palette.highlight : (i % 2 ? palette.primary : palette.secondary);
       ctx2d.globalAlpha = .3 + value * .7;
       ctx2d.beginPath(); ctx2d.arc(x,y,2 + value * 4,0,Math.PI*2); ctx2d.fill();
     }
     ctx2d.globalAlpha = 1; ctx2d.strokeStyle = '#5be6ed3f'; ctx2d.lineWidth = 1; ctx2d.beginPath(); ctx2d.arc(cx,cy,radius,0,Math.PI*2); ctx2d.stroke();
-    ctx2d.fillStyle = '#c8f36d'; ctx2d.globalAlpha = .65; ctx2d.beginPath(); ctx2d.arc(cx,cy,3 + (data[2]||0)/60,0,Math.PI*2); ctx2d.fill(); ctx2d.globalAlpha = 1;
+    ctx2d.fillStyle = palette.highlight; ctx2d.globalAlpha = .65; ctx2d.beginPath(); ctx2d.arc(cx,cy,3 + (data[2]||0)/60,0,Math.PI*2); ctx2d.fill(); ctx2d.globalAlpha = 1;
   }
-  function exportAudio() {
+  function downloadBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url; link.download = name; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function toInt16(channel) {
+    const output = new Int16Array(channel.length);
+    for (let i = 0; i < channel.length; i++) output[i] = Math.max(-1, Math.min(1, channel[i])) * 32767;
+    return output;
+  }
+  async function exportMp3() {
+    if (!window.lamejs) throw new Error('mp3-library');
+    const response = await fetch(state.objectUrl);
+    const buffer = await response.arrayBuffer();
+    const decoded = await state.audioContext.decodeAudioData(buffer);
+    const channels = Math.min(2, decoded.numberOfChannels);
+    const encoder = new lamejs.Mp3Encoder(channels, decoded.sampleRate, 128);
+    const left = toInt16(decoded.getChannelData(0));
+    const right = channels > 1 ? toInt16(decoded.getChannelData(1)) : left;
+    const chunks = [];
+    for (let i = 0; i < left.length; i += 1152) {
+      const leftChunk = left.subarray(i, i + 1152);
+      const rightChunk = right.subarray(i, i + 1152);
+      const encoded = channels > 1 ? encoder.encodeBuffer(leftChunk, rightChunk) : encoder.encodeBuffer(leftChunk);
+      if (encoded.length) chunks.push(new Int8Array(encoded));
+    }
+    const flushed = encoder.flush();
+    if (flushed.length) chunks.push(new Int8Array(flushed));
+    downloadBlob(new Blob(chunks, {type:'audio/mpeg'}), (state.fileName.replace(/\.[^/.]+$/, '') || 'aurora-audio') + '.mp3');
+  }
+  function exportVideo(format) {
+    return new Promise((resolve, reject) => {
+      if (!canvas.captureStream || !window.MediaRecorder) { reject(new Error('video-unsupported')); return; }
+      const mimeCandidates = format === 'mp4'
+        ? ['video/mp4;codecs="avc1.42E01E,mp4a.40.2"', 'video/mp4']
+        : ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+      const mime = mimeCandidates.find(type => MediaRecorder.isTypeSupported(type));
+      if (!mime) { reject(new Error(format === 'mp4' ? 'mp4-unsupported' : 'video-unsupported')); return; }
+      setupAudioGraph();
+      const stream = canvas.captureStream(30);
+      state.recordDestination.stream.getAudioTracks().forEach(track => stream.addTrack(track));
+      const recorder = new MediaRecorder(stream, {mimeType: mime});
+      const chunks = [];
+      let settled = false;
+      const finish = () => { if (recorder.state !== 'inactive') recorder.stop(); };
+      recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+      recorder.onerror = () => { if (!settled) { settled = true; reject(new Error('recording')); } };
+      recorder.onstop = () => {
+        if (settled) return;
+        settled = true;
+        const extension = format === 'mp4' ? 'mp4' : 'webm';
+        downloadBlob(new Blob(chunks, {type:mime}), (state.fileName.replace(/\.[^/.]+$/, '') || 'aurora-video') + '-visual.' + extension);
+        resolve();
+      };
+      if (state.backgroundVideo) state.backgroundVideo.play().catch(() => {});
+      audio.currentTime = 0;
+      recorder.start(200);
+      audio.play().then(() => audio.addEventListener('ended', finish, {once:true})).catch(() => { finish(); reject(new Error('audio-start')); });
+    });
+  }
+  async function exportAudio() {
     if (!state.fileName) { toast('Importe um áudio antes de exportar.'); return; }
     if (state.exports >= maxExports) { toast('Limite Free atingido: 2 exportações.'); return; }
-    if (!window.MediaRecorder || !state.recordDestination) { toast('A exportação não é suportada neste navegador.'); return; }
     const button = $('#exportBtn');
-    button.disabled = true; button.firstChild.textContent = ' Processando...';
-    const chunks = [];
-    const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-    const recorder = new MediaRecorder(state.recordDestination.stream, {mimeType:mime});
-    const finish = () => { if (recorder.state !== 'inactive') recorder.stop(); };
-    recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
-    recorder.onstop = () => {
-      const blob = new Blob(chunks, {type:mime});
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a'); link.href = url; link.download = (state.fileName.replace(/.[^/.]+$/, '') || 'aurora-audio') + '-processed.webm'; link.click();
-      URL.revokeObjectURL(url); state.exports += 1; saveCounters(); updateQuota(); button.firstChild.textContent = '↗ Exportar áudio'; toast('Exportação concluída.');
-    };
-    audio.currentTime = 0; recorder.start(); audio.play().then(() => audio.addEventListener('ended', finish, {once:true})).catch(() => { recorder.stop(); toast('Não foi possível iniciar a exportação.'); });
+    button.disabled = true;
+    button.textContent = 'Processando...';
+    try {
+      setupAudioGraph();
+      if (state.exportFormat === 'mp3') await exportMp3();
+      else await exportVideo(state.exportFormat);
+      state.exports += 1; saveCounters(); updateQuota(); toast('Exportação concluída.');
+    } catch (error) {
+      const message = error.message === 'mp4-unsupported'
+        ? 'MP4 não é compatível neste navegador. Escolha WebM ou use outro navegador.'
+        : error.message === 'mp3-library'
+          ? 'O codificador MP3 não carregou. Recarregue a página e tente novamente.'
+          : 'Não foi possível exportar neste navegador.';
+      toast(message);
+    } finally {
+      button.textContent = '↗ Exportar resultado';
+      updateQuota();
+    }
   }
   function renderDirectory(section) {
     const data = sectionData[section];
