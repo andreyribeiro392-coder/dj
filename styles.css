@@ -443,3 +443,59 @@ body::before{opacity:.12}
   .composition-grid{gap:13px}
   .info-strip p{font-size:11px}
 }
+
+
+/* Dark slider rails with deep-red handles */
+.control input[type="range"],
+.visual-settings input[type="range"],
+.background-controls input[type="range"]{
+  -webkit-appearance:none!important;
+  appearance:none!important;
+  height:18px!important;
+  padding:0!important;
+  border:0!important;
+  outline:0!important;
+  background:transparent!important;
+  accent-color:#7e202b;
+}
+.control input[type="range"]::-webkit-slider-runnable-track,
+.visual-settings input[type="range"]::-webkit-slider-runnable-track,
+.background-controls input[type="range"]::-webkit-slider-runnable-track{
+  height:5px!important;
+  border:0!important;
+  border-radius:99px!important;
+  background:#1b2028!important;
+  box-shadow:inset 0 1px 2px #000!important;
+}
+.control input[type="range"]::-moz-range-track,
+.visual-settings input[type="range"]::-moz-range-track,
+.background-controls input[type="range"]::-moz-range-track{
+  height:5px!important;
+  border:0!important;
+  border-radius:99px!important;
+  background:#1b2028!important;
+  box-shadow:inset 0 1px 2px #000!important;
+}
+.control input[type="range"]::-webkit-slider-thumb,
+.visual-settings input[type="range"]::-webkit-slider-thumb,
+.background-controls input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none!important;
+  appearance:none!important;
+  width:14px!important;
+  height:14px!important;
+  margin-top:-4.5px!important;
+  border:2px solid #3f1118!important;
+  border-radius:50%!important;
+  background:#7e202b!important;
+  box-shadow:0 0 0 1px #a63a46aa,0 2px 5px #000b!important;
+}
+.control input[type="range"]::-moz-range-thumb,
+.visual-settings input[type="range"]::-moz-range-thumb,
+.background-controls input[type="range"]::-moz-range-thumb{
+  width:12px!important;
+  height:12px!important;
+  border:2px solid #3f1118!important;
+  border-radius:50%!important;
+  background:#7e202b!important;
+  box-shadow:0 0 0 1px #a63a46aa,0 2px 5px #000b!important;
+}
