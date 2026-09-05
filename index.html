@@ -14,7 +14,7 @@
       if (isApp && !signedIn) window.location.replace('/login.html');
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=20260905-premium-v1">
+  <link rel="stylesheet" href="styles.css?v=20260905-dark-v2">
 </head>
 <body>
   <div class="liquid liquid-a"></div><div class="liquid liquid-b"></div><div class="grid-glow"></div>
@@ -47,7 +47,7 @@
       </header>
       <div class="content">
         <section class="welcome-row">
-          <div><p class="eyebrow">AUDIO VISUAL WORKSPACE</p><h1>Shape your <em>sound.</em></h1><p class="subtitle">Crie visualizações envolventes, ajuste o som e exporte sua faixa em um único espaço.</p></div>
+          <div><p class="eyebrow">AUDIO VISUAL WORKSPACE</p><h1>Dê forma ao seu <em>som.</em></h1><p class="subtitle">Crie visualizações envolventes, ajuste o som e exporte sua faixa em um único espaço.</p></div>
           <div class="quota"><div><span>FREE PLAN</span><b id="quotaText">2 / 2 uploads</b></div><div class="quota-bar"><i id="quotaBar"></i></div><small>Limites renovados no próximo ciclo</small></div>
         </section>
         <section class="studio-grid" id="studioSection">
@@ -61,7 +61,7 @@
             <audio id="audio" controls preload="metadata"></audio>
           </div>
           <div class="panel visual-panel">
-            <div class="panel-heading"><div><span class="kicker">02 · VISUALIZER</span><h2>Live spectrum</h2></div><div class="visual-tools"><button class="tiny active" data-visual="bars" title="Barras radiais">Barras</button><button class="tiny" data-visual="disc" title="Disco giratório">Disco</button><button class="tiny" data-visual="triangles" title="Triângulos luminosos">Triângulos</button><button class="tiny" data-visual="mirror" title="Espectro espelhado">Espelho</button><button class="tiny" data-visual="wave" title="Onda de áudio">Onda</button><button class="tiny" data-visual="particles" title="Partículas">Partículas</button></div></div>
+            <div class="panel-heading"><div><span class="kicker">02 · VISUALIZER</span><h2>Espectro ao vivo</h2></div><div class="visual-tools"><button class="tiny active" data-visual="bars" title="Barras radiais">Barras</button><button class="tiny" data-visual="disc" title="Disco giratório">Disco</button><button class="tiny" data-visual="triangles" title="Triângulos luminosos">Triângulos</button><button class="tiny" data-visual="mirror" title="Espectro espelhado">Espelho</button><button class="tiny" data-visual="wave" title="Onda de áudio">Onda</button><button class="tiny" data-visual="particles" title="Partículas">Partículas</button></div></div>
             <div class="visual-settings" aria-label="Configurações do visualizador">
               <label>Qtd. barras <output id="barCountValue">96</output><input id="barCount" type="range" min="32" max="128" step="8" value="96"></label>
               <label>Intensidade <output id="visualIntensityValue">100%</output><input id="visualIntensity" type="range" min="40" max="160" value="100"></label>
@@ -73,7 +73,7 @@
             <div class="now-playing"><div class="mini-cover">◎</div><div class="now-copy"><b id="nowTitle">Nenhuma faixa selecionada</b><small id="nowMeta">Importe um áudio para começar</small></div><button class="play-btn" id="playBtn" type="button" aria-label="Reproduzir">▶</button></div>
           </div>
           <div class="panel mixer-panel">
-            <div class="panel-heading"><div><span class="kicker">03 · MIXER</span><h2>Sound controls</h2></div><button class="reset-btn" id="resetControls">Reset</button></div>
+            <div class="panel-heading"><div><span class="kicker">03 · MIXER</span><h2>Controles de áudio</h2></div><button class="reset-btn" id="resetControls">Reset</button></div>
             <div class="control"><div class="control-label"><span>Graves</span><b id="bassValue">+0 dB</b></div><input id="bass" type="range" min="-12" max="12" value="0"><div class="range-hints"><span>-12</span><span>0</span><span>+12</span></div></div>
             <div class="control"><div class="control-label"><span>Agudos</span><b id="trebleValue">+0 dB</b></div><input id="treble" type="range" min="-12" max="12" value="0"><div class="range-hints"><span>-12</span><span>0</span><span>+12</span></div></div>
             <div class="control"><div class="control-label"><span>Sensibilidade</span><b id="sensitivityValue">70%</b></div><input id="sensitivity" type="range" min="20" max="140" value="70"><div class="range-hints"><span>Suave</span><span>Intenso</span></div></div>
