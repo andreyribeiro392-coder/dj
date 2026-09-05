@@ -662,7 +662,17 @@
       });
       window.location.assign('https://accounts.google.com/o/oauth2/v2/auth?' + params.toString());
     };
-    $('#clearSession').onclick = () => { if (state.objectUrl) URL.revokeObjectURL(state.objectUrl); state.objectUrl=''; state.fileName=''; audio.removeAttribute('src'); audio.load(); $('#trackInfo').classList.add('empty'); $('#trackInfo').innerHTML='<div class="track-art">♪</div><div><b>Nenhuma faixa carregada</b><small>Seu áudio fica somente neste dispositivo</small></div><span class="track-time">—</span>'; $('#nowTitle').textContent='Nenhuma faixa selecionada'; $('#nowMeta').textContent='Importe um áudio para começar'; updateQuota(); toast('Sessão limpa.'); };
+    $('#clearSession').onclick = () => {
+      if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
+      if (state.backgroundUrl) URL.revokeObjectURL(state.backgroundUrl);
+      state.objectUrl=''; state.fileBlob=null; state.fileKey=''; state.fileName=''; state.backgroundUrl=''; state.backgroundImage=null; state.backgroundVideo=null;
+      audio.pause(); audio.removeAttribute('src'); audio.load();
+      const imagePreview=$('#bgImagePreview'), videoPreview=$('#bgVideoPreview'); if(imagePreview){imagePreview.removeAttribute('src');imagePreview.hidden=true;} if(videoPreview){videoPreview.pause();videoPreview.removeAttribute('src');videoPreview.hidden=true;}
+      $('#trackInfo').classList.add('empty'); $('#trackInfo').innerHTML='<div class="track-art">♪</div><div><b>Nenhuma faixa carregada</b><small>Seu áudio fica somente neste dispositivo</small></div><span class="track-time">—</span>';
+      $('#nowTitle').textContent='Nenhuma faixa selecionada'; $('#nowMeta').textContent='Importe um áudio para começar';
+      dbPut('session', null); dbPut('background-image', null); dbPut('background-video', null);
+      updateQuota(); updateExportButton(); toast('Sessão limpa.'); 
+    };
     $('#learnMore').onclick = () => toast('O áudio é analisado localmente com a Web Audio API.');
     document.addEventListener('pointermove', event => { state.pointer.x = event.clientX / window.innerWidth; state.pointer.y = event.clientY / window.innerHeight; document.documentElement.style.setProperty('--mx', state.pointer.x); document.documentElement.style.setProperty('--my', state.pointer.y); $('.liquid-a').style.transform = 'translate(' + ((state.pointer.x - .5) * 90) + 'px,' + ((state.pointer.y - .5) * 70) + 'px)'; $('.liquid-b').style.transform = 'translate(' + ((.5 - state.pointer.x) * 80) + 'px,' + ((.5 - state.pointer.y) * 60) + 'px)'; });
     const orientationSelect = $('#orientationSelect');
