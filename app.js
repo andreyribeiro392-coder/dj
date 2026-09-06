@@ -33,6 +33,9 @@
     centerText: localStorage.getItem('aurora-center-text') || 'A',
     centerSize: Number(localStorage.getItem('aurora-center-size') || 100) / 100,
     centerOpacity: Number(localStorage.getItem('aurora-center-opacity') || 100) / 100,
+    orbitalShape: localStorage.getItem('aurora-orbital-shape') || 'ripple',
+    orbitalLayers: Number(localStorage.getItem('aurora-orbital-layers') || 3),
+    orbitalThickness: Number(localStorage.getItem('aurora-orbital-thickness') || 100) / 100,
     backgroundImage: null,
     defaultArtwork: null,
     backgroundVideo: null,
@@ -125,6 +128,9 @@
       centerText: state.centerText,
       centerSize: state.centerSize,
       centerOpacity: state.centerOpacity,
+      orbitalShape: state.orbitalShape,
+      orbitalLayers: state.orbitalLayers,
+      orbitalThickness: state.orbitalThickness,
       barCount: state.barCount,
       visualIntensity: state.visualIntensity,
       visualRotation: state.visualRotation,
@@ -157,6 +163,9 @@
     if (values.style && stylePresets[values.style]) applyVisualStyle(values.style);
     [['centerText', values.centerText], ['centerSize', Math.round((values.centerSize || 1) * 100)], ['centerOpacity', Math.round((values.centerOpacity || 1) * 100)]].forEach(([id, value]) => {
       const input = $('#' + id); if (input && value !== undefined) { input.value = value; setCenterSetting(id, value); }
+    });
+    [['orbitalShape', values.orbitalShape || 'ripple'], ['orbitalLayers', values.orbitalLayers || 3], ['orbitalThickness', Math.round((values.orbitalThickness || 1) * 100)]].forEach(([id, value]) => {
+      const input = $('#' + id); if (input && value !== undefined) { input.value = value; setOrbitalSetting(id, value); }
     });
     if (values.visual) {
       state.visual = values.visual;
@@ -343,6 +352,14 @@
     const label = $('#' + id + 'Value');
     if (label && id !== 'centerText') label.textContent = Math.round(Number(value)) + '%';
   }
+  function setOrbitalSetting(id, value) {
+    if (id === 'orbitalShape') state.orbitalShape = value;
+    if (id === 'orbitalLayers') state.orbitalLayers = Math.max(1, Math.min(6, Number(value)));
+    if (id === 'orbitalThickness') state.orbitalThickness = Math.max(.4, Math.min(1.8, Number(value) / 100));
+    localStorage.setItem('aurora-' + id.replace(/[A-Z]/g, match => '-' + match.toLowerCase()), String(value));
+    const output = $('#' + id + 'Value');
+    if (output) output.textContent = id === 'orbitalThickness' ? Math.round(state.orbitalThickness * 100) + '%' : String(state.orbitalLayers);
+  }
   function setCenterImage(file, options = {}) {
     if (!file || !String(file.type || '').startsWith('image/')) { if (!options.silent) toast('Escolha uma imagem PNG, JPG ou WEBP para o núcleo.'); return; }
     if (file.size > 25 * 1024 * 1024) { if (!options.silent) toast('A imagem do núcleo ultrapassa 25 MB.'); return; }
@@ -414,7 +431,8 @@
   }
   function resetControls() {
     [['bass',0],['treble',0],['sensitivity',70],['smooth',70],['noiseReduction',0],['eq60',0],['eq170',0],['eq310',0],['eq600',0],['eq1200',0],['eq3000',0],['eq8000',0],['eq14000',0]].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setControl(id, value); } });
-    [['barCount',96],['visualIntensity',100],['visualRotation',0],['visualOpacity',100],['bassResponse',100],['barPlacement','outside']].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setVisualSetting(id, value); } });
+    [['barCount',96],['visualIntensity',100],['visualRotation',0],['visualOpacity',100],['bassResponse',100],['pulseAmount',100],['glowAmount',80],['barPlacement','outside']].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setVisualSetting(id, value); } });
+    [['orbitalShape','ripple'],['orbitalLayers',3],['orbitalThickness',100]].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setOrbitalSetting(id, value); } });
     [['bgOpacity',100],['bgZoom',100],['bgX',0],['bgY',0],['bgBrightness',100],['bgContrast',100],['bgBlur',0],['backgroundFit','contain'],['visualLayer','front']].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setBackgroundSetting(id, value); } });
     toast('Controles restaurados.');
   }
@@ -593,6 +611,9 @@
     const spin = performance.now() / 9000 + (state.visualRotation || 0) * Math.PI / 180;
     const glow = Math.max(.25, Math.min(1, state.glowAmount || .8));
     const points = Math.max(96, Math.min(180, state.barCount + 48));
+    const shape = state.orbitalShape || 'ripple';
+    const layerCount = Math.max(1, Math.min(6, state.orbitalLayers || 3));
+    const thickness = Math.max(.4, Math.min(1.8, state.orbitalThickness || 1));
     const drawRing = (ringIndex, radius, amplitude, alpha) => {
       ctx2d.beginPath();
       for (let i = 0; i <= points; i++) {
@@ -601,16 +622,20 @@
         const sampleIndex = Math.floor(t * (data.length - 1));
         const value = Math.pow((data[sampleIndex] || 0) / 255, .62);
         const lowWeight = Math.max(0, 1 - t * 1.7);
-        const wave = Math.sin(angle * (3 + ringIndex) + performance.now() / 850) * .025;
-        const r = radius * (1 + wave + value * amplitude * (0.55 + lowWeight * state.orbitalBass * 1.4));
+        const audioResponse = value * amplitude * (0.55 + lowWeight * state.orbitalBass * 1.4);
+        let shapeResponse = Math.sin(angle * (3 + ringIndex) + performance.now() / 850) * .025;
+        if (shape === 'pulse') shapeResponse = Math.sin(angle * (4 + ringIndex) + performance.now() / 560) * (.035 + state.orbitalBass * .07);
+        if (shape === 'petals') shapeResponse = Math.pow((Math.sin(angle * (4 + ringIndex) + spin * 2) + 1) / 2, 2) * (.18 + state.orbitalBass * .16) - .055;
+        if (shape === 'star') shapeResponse = Math.pow(Math.max(0, Math.cos(angle * (5 + ringIndex) - spin * 3)), 6) * (.23 + state.orbitalBass * .2) - .04;
+        const r = radius * (1 + shapeResponse + audioResponse);
         const x = cx + Math.cos(angle) * r;
-        const y = cy + Math.sin(angle) * r;
+        const y = cy + Math.sin(angle) * r * (shape === 'orbit' ? .58 : 1);
         if (i === 0) ctx2d.moveTo(x, y); else ctx2d.lineTo(x, y);
       }
       ctx2d.closePath();
       const gradient = ctx2d.createLinearGradient(cx - radius, cy - radius, cx + radius, cy + radius);
       gradient.addColorStop(0, palette.primary); gradient.addColorStop(.5, palette.highlight); gradient.addColorStop(1, palette.secondary);
-      ctx2d.strokeStyle = gradient; ctx2d.globalAlpha = alpha; ctx2d.lineWidth = Math.max(1.5, 2.5 + state.orbitalBass * 3);
+      ctx2d.strokeStyle = gradient; ctx2d.globalAlpha = alpha; ctx2d.lineWidth = Math.max(1.25, (2.5 + state.orbitalBass * 3) * thickness);
       ctx2d.shadowBlur = (14 + state.orbitalBass * 24) * glow; ctx2d.shadowColor = palette.primary;
       ctx2d.stroke();
     };
@@ -619,9 +644,10 @@
     const halo = ctx2d.createRadialGradient(cx, cy, baseRadius * .25, cx, cy, baseRadius * (2.8 + state.orbitalBass));
     halo.addColorStop(0, palette.primary + '45'); halo.addColorStop(.35, palette.secondary + '16'); halo.addColorStop(1, 'transparent');
     ctx2d.fillStyle = halo; ctx2d.globalAlpha = .38 + state.orbitalBass * .32; ctx2d.beginPath(); ctx2d.arc(cx, cy, baseRadius * (2.6 + state.orbitalBass), 0, Math.PI * 2); ctx2d.fill();
-    drawRing(0, baseRadius * (1.42 + state.orbitalBass * .18), .24, .58 * glow);
-    drawRing(1, baseRadius * (1.68 + state.orbitalBass * .28), .34, .8 * glow);
-    drawRing(2, baseRadius * (1.94 + state.orbitalBass * .36), .46, .62 * glow);
+    for (let ringIndex = 0; ringIndex < layerCount; ringIndex++) {
+      const ratio = layerCount === 1 ? .5 : ringIndex / (layerCount - 1);
+      drawRing(ringIndex, baseRadius * (1.36 + ratio * .72 + state.orbitalBass * (.16 + ratio * .2)), .22 + ratio * .26, (.5 + (1 - Math.abs(ratio - .5)) * .32) * glow);
+    }
     ctx2d.shadowBlur = 0;
     // Núcleo escuro mantém o elemento central legível sobre qualquer fundo.
     ctx2d.globalCompositeOperation = 'source-over';
@@ -1019,6 +1045,8 @@
     if (coreToggle && coreBody) coreToggle.onclick = () => { const open = coreBody.hidden; coreBody.hidden = !open; coreToggle.setAttribute('aria-expanded', String(open)); coreToggle.textContent = open ? 'Fechar' : 'Editar'; };
     const centerText = $('#centerText'); if (centerText) { centerText.value = state.centerText; centerText.addEventListener('input', event => setCenterSetting('centerText', event.target.value)); }
     ['centerSize','centerOpacity'].forEach(id => { const input = $('#' + id); if (input) { input.value = Math.round((id === 'centerSize' ? state.centerSize : state.centerOpacity) * 100); input.addEventListener('input', event => setCenterSetting(id, event.target.value)); setCenterSetting(id, input.value); } });
+    const orbitalShape = $('#orbitalShape'); if (orbitalShape) { orbitalShape.value = state.orbitalShape; orbitalShape.addEventListener('change', event => setOrbitalSetting('orbitalShape', event.target.value)); }
+    ['orbitalLayers','orbitalThickness'].forEach(id => { const input = $('#' + id); if (input) { input.value = id === 'orbitalLayers' ? state.orbitalLayers : Math.round(state.orbitalThickness * 100); input.addEventListener('input', event => setOrbitalSetting(id, event.target.value)); setOrbitalSetting(id, input.value); } });
     $('#centerImageInput')?.addEventListener('change', event => setCenterImage(event.target.files[0]));
     $('#clearCenterArt')?.addEventListener('click', clearCenterArt);
     $('#exportCenterPng')?.addEventListener('click', exportCenterPng);
