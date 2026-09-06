@@ -21,7 +21,7 @@
     noiseReduction: 0,
     recordDestination: null,
     muted: false,
-    visual: 'bars',
+    visual: 'orbital',
     pointer: { x: .5, y: .5 },
     fileName: '',
     orientation: 'portrait',
@@ -34,6 +34,7 @@
     backgroundUrl: '',
     exportHistory: (() => { try { return JSON.parse(localStorage.getItem('aurora-export-history') || '[]'); } catch { return []; } })(),
     savedPresets: (() => { try { return JSON.parse(localStorage.getItem('aurora-presets') || '[]'); } catch { return []; } })(),
+    seenFileKeys: (() => { try { return JSON.parse(localStorage.getItem('aurora-seen-files') || '[]'); } catch { return []; } })(),
     lastExportUrl: '',
     lastExportBlob: null,
     isAdmin: false,
@@ -43,6 +44,9 @@
     visualIntensity: Number(localStorage.getItem('aurora-visual-intensity') || 100) / 100,
     visualRotation: Number(localStorage.getItem('aurora-visual-rotation') || 0),
     visualOpacity: Number(localStorage.getItem('aurora-visual-opacity') || 100) / 100,
+    bassResponse: Number(localStorage.getItem('aurora-bass-response') || 100) / 100,
+    pulseAmount: Number(localStorage.getItem('aurora-pulse-amount') || 100) / 100,
+    glowAmount: Number(localStorage.getItem('aurora-glow-amount') || 80) / 100,
     barPlacement: localStorage.getItem('aurora-bar-placement') || 'outside',
     backgroundFit: localStorage.getItem('aurora-bg-fit') || 'contain',
     bgOpacity: Number(localStorage.getItem('aurora-bg-opacity') || 100) / 100,
@@ -85,7 +89,7 @@
   }
   const sectionData = {
     library: {eyebrow:'ESPAÇO / BIBLIOTECA', title:'Biblioteca', text:'Organize suas faixas e mantenha tudo pronto para a próxima sessão.', cards:[['Arquivos locais','Seus áudios ficam neste dispositivo. Nenhum arquivo é enviado automaticamente.','◫'],['Sessões recentes','Reabra uma sessão e continue de onde parou.','↺'],['Busca rápida','Encontre uma faixa pelo nome em poucos segundos.','⌕']]},
-    visualizers: {eyebrow:'ESPAÇO / VISUALIZADORES', title:'Visualizadores', text:'Escolha uma leitura visual para cada momento da sua música.', cards:[['Barras radiais','Leitura circular com barras coloridas que respiram com a batida.','▥'],['Disco giratório','Um disco central com sulcos, brilho e rotação contínua.','◎'],['Triângulos','Geometria neon em camadas para batidas marcantes.','△'],['Espectro espelhado','Barras simétricas para uma leitura limpa e moderna.','◫'],['Onda','Forma de onda baseada no sinal de tempo real.','〰'],['Partículas','Pontos orbitais leves para uma atmosfera espacial.','✦']]},
+    visualizers: {eyebrow:'ESPAÇO / VISUALIZADORES', title:'Visualizadores', text:'Escolha uma leitura visual para cada momento da sua música.', cards:[['Barras radiais','Leitura circular com barras coloridas que respiram com a batida.','▥'],['Espectro 2D','Barras horizontais com resposta dedicada aos graves e reflexos suaves.','▤'],['Disco giratório','Um disco central com sulcos, brilho e rotação contínua.','◎'],['Triângulos','Geometria neon em camadas para batidas marcantes.','△'],['Espectro espelhado','Barras simétricas para uma leitura limpa e moderna.','◫'],['Onda','Forma de onda baseada no sinal de tempo real.','〰'],['Partículas','Pontos orbitais leves para uma atmosfera espacial.','✦']]},
     mixer: {eyebrow:'FERRAMENTAS / MIXER', title:'Mixer', text:'Ajuste o equilíbrio da faixa com controles precisos.', cards:[['Graves','Reforce ou reduza os graves sem alterar o restante do espectro.','◒'],['Agudos','Dê presença aos agudos com suavidade.','⌁'],['Monitor local','Todo o processamento acontece no navegador.','●']]},
     presets: {eyebrow:'FERRAMENTAS / PRESETS', title:'Presets', text:'Salve combinações de mixer e visual para repetir seu estilo.', cards:[['Night drive','Graves presentes, brilho controlado e visual orbital.','✦'],['Clean room','Som equilibrado para podcasts e conteúdo falado.','✧'],['Pulse','Sensibilidade alta para batidas marcantes.','◉']]},
     exports: {eyebrow:'ENTREGA / EXPORTAÇÕES', title:'Exportações', text:'Acompanhe e baixe novamente os arquivos criados.', cards:[['Arquivo processado', 'Exporte a faixa com os filtros aplicados.','↗'],['Progresso claro', 'Acompanhe o andamento e cancele quando precisar.','⊙'],['Prévia imediata', 'Revise o resultado antes de baixar.','＋']]},
@@ -103,6 +107,7 @@
     localStorage.setItem(storage.exports, String(state.exports));
     localStorage.setItem(storage.exportHistory, JSON.stringify(state.exportHistory));
     localStorage.setItem('aurora-presets', JSON.stringify(state.savedPresets));
+    localStorage.setItem('aurora-seen-files', JSON.stringify(state.seenFileKeys.slice(-40)));
   }
   function currentPresetSnapshot(name) {
     return {
@@ -116,12 +121,27 @@
       visualIntensity: state.visualIntensity,
       visualRotation: state.visualRotation,
       visualOpacity: state.visualOpacity,
+      bassResponse: state.bassResponse,
+      pulseAmount: state.pulseAmount,
+      glowAmount: state.glowAmount,
       barPlacement: state.barPlacement,
       bass: Number($('#bass')?.value || 0),
       treble: Number($('#treble')?.value || 0),
       sensitivity: Number($('#sensitivity')?.value || 70),
       smooth: Number($('#smooth')?.value || 70),
-      noiseReduction: Number($('#noiseReduction')?.value || 0)
+      noiseReduction: Number($('#noiseReduction')?.value || 0),
+      eq: [60,170,310,600,1200,3000,8000,14000].map(f => Number($('#eq' + f)?.value || 0)),
+      orientation: state.orientation,
+      exportFormat: state.exportFormat,
+      backgroundFit: state.backgroundFit,
+      bgOpacity: state.bgOpacity,
+      bgZoom: state.bgZoom,
+      bgX: state.bgX,
+      bgY: state.bgY,
+      bgBrightness: state.bgBrightness,
+      bgContrast: state.bgContrast,
+      bgBlur: state.bgBlur,
+      visualLayer: state.visualLayer
     };
   }
   function applyPreset(values) {
@@ -131,12 +151,18 @@
       state.visual = values.visual;
       document.querySelectorAll('[data-visual]').forEach(x => x.classList.toggle('active', x.dataset.visual === state.visual));
     }
-    [['barCount', values.barCount], ['visualIntensity', Math.round((values.visualIntensity || 1) * 100)], ['visualRotation', values.visualRotation || 0], ['visualOpacity', Math.round((values.visualOpacity || 1) * 100)], ['barPlacement', values.barPlacement || 'outside']].forEach(([id, value]) => {
+    [['barCount', values.barCount], ['visualIntensity', Math.round((values.visualIntensity || 1) * 100)], ['visualRotation', values.visualRotation || 0], ['visualOpacity', Math.round((values.visualOpacity || 1) * 100)], ['bassResponse', Math.round((values.bassResponse || 1) * 100)], ['pulseAmount', Math.round((values.pulseAmount || 1) * 100)], ['glowAmount', Math.round((values.glowAmount || .8) * 100)], ['barPlacement', values.barPlacement || 'outside']].forEach(([id, value]) => {
       const input = $('#' + id); if (input && value !== undefined) { input.value = value; setVisualSetting(id, value); }
     });
     [['bass', values.bass], ['treble', values.treble], ['sensitivity', values.sensitivity], ['smooth', values.smooth], ['noiseReduction', values.noiseReduction]].forEach(([id, value]) => {
       const input = $('#' + id); if (input && value !== undefined) { input.value = value; setControl(id, value); }
     });
+    if (Array.isArray(values.eq)) [60,170,310,600,1200,3000,8000,14000].forEach((frequency, index) => {
+      const input = $('#eq' + frequency); if (input && values.eq[index] !== undefined) { input.value = values.eq[index]; setControl('eq' + frequency, values.eq[index]); }
+    });
+    if (values.orientation) { state.orientation = values.orientation; $('#orientationSelect').value = values.orientation; $('#canvasWrap')?.classList.toggle('landscape', state.orientation === 'landscape'); }
+    if (values.exportFormat) { state.exportFormat = values.exportFormat; $('#exportFormat').value = values.exportFormat; updateExportButton(); }
+    [['backgroundFit', values.backgroundFit], ['bgOpacity', Math.round((values.bgOpacity ?? 1) * 100)], ['bgZoom', Math.round((values.bgZoom ?? 1) * 100)], ['bgX', values.bgX], ['bgY', values.bgY], ['bgBrightness', values.bgBrightness], ['bgContrast', values.bgContrast], ['bgBlur', values.bgBlur], ['visualLayer', values.visualLayer]].forEach(([id, value]) => { const input = $('#' + id); if (input && value !== undefined) { input.value = value; setBackgroundSetting(id, value); } });
   }
   const dbPromise = (() => {
     if (!window.indexedDB) return Promise.resolve(null);
@@ -230,12 +256,13 @@
     if (file.size > 100 * 1024 * 1024) { toast('Esse arquivo ultrapassa o limite de 100 MB.'); return; }
     const key = [file.name, file.size, file.lastModified || 0].join('|');
     if (key === state.fileKey && state.fileName) { toast('Essa faixa já está carregada.'); return; }
-    if (!options.restored && !state.isAdmin && state.uploads >= maxUploads) { toast('Limite Free atingido: 2 uploads.'); return; }
+    const alreadyCounted = state.seenFileKeys.includes(key);
+    if (!options.restored && !state.isAdmin && state.uploads >= maxUploads && !alreadyCounted) { toast('Limite Free atingido: 2 uploads.'); return; }
     setBusy($('#dropzone'), true, 'Carregando áudio…');
     if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
     state.objectUrl = URL.createObjectURL(file);
     state.fileBlob = file; state.fileKey = key; state.fileName = file.name || 'audio';
-    if (!options.restored) { state.uploads += 1; saveCounters(); updateQuota(); }
+    if (!options.restored && !state.isAdmin && !alreadyCounted) { state.uploads += 1; state.seenFileKeys.push(key); saveCounters(); updateQuota(); }
     audio.src = state.objectUrl; audio.load();
     try { setupAudioGraph(); } catch (_) {}
     $('#trackInfo').classList.remove('empty');
@@ -288,8 +315,11 @@
     if (id === 'visualRotation') state.visualRotation = n;
     if (id === 'visualOpacity') state.visualOpacity = n / 100;
     if (id === 'barPlacement') state.barPlacement = value;
+    if (id === 'bassResponse') state.bassResponse = n / 100;
+    if (id === 'pulseAmount') state.pulseAmount = n / 100;
+    if (id === 'glowAmount') state.glowAmount = n / 100;
     localStorage.setItem('aurora-' + id.replace(/[A-Z]/g, m => '-' + m.toLowerCase()), String(value));
-    const labels = {barCount:n, visualIntensity:Math.round(state.visualIntensity*100)+'%', visualRotation:n+'°', visualOpacity:Math.round(state.visualOpacity*100)+'%'};
+    const labels = {barCount:n, visualIntensity:Math.round(state.visualIntensity*100)+'%', visualRotation:n+'°', visualOpacity:Math.round(state.visualOpacity*100)+'%', bassResponse:Math.round(state.bassResponse*100)+'%', pulseAmount:Math.round(state.pulseAmount*100)+'%', glowAmount:Math.round(state.glowAmount*100)+'%'};
     const node = $('#' + id + 'Value'); if (node && labels[id] !== undefined) node.textContent = labels[id];
   }
   function setBackgroundSetting(id, value) {
@@ -309,7 +339,7 @@
   }
   function resetControls() {
     [['bass',0],['treble',0],['sensitivity',70],['smooth',70],['noiseReduction',0],['eq60',0],['eq170',0],['eq310',0],['eq600',0],['eq1200',0],['eq3000',0],['eq8000',0],['eq14000',0]].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setControl(id, value); } });
-    [['barCount',96],['visualIntensity',100],['visualRotation',0],['visualOpacity',100],['barPlacement','outside']].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setVisualSetting(id, value); } });
+    [['barCount',96],['visualIntensity',100],['visualRotation',0],['visualOpacity',100],['bassResponse',100],['barPlacement','outside']].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setVisualSetting(id, value); } });
     [['bgOpacity',100],['bgZoom',100],['bgX',0],['bgY',0],['bgBrightness',100],['bgContrast',100],['bgBlur',0],['backgroundFit','contain'],['visualLayer','front']].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setBackgroundSetting(id, value); } });
     toast('Controles restaurados.');
   }
@@ -380,7 +410,9 @@
       const timeData = state.analyser ? new Uint8Array(state.analyser.fftSize) : data;
       if (state.analyser) state.analyser.getByteTimeDomainData(timeData);
       drawWave(timeData, w, h, sensitivity);
-    } else if (state.visual === 'orbit' || state.visual === 'particles') drawOrbit(data, w, h, sensitivity, state.visual === 'particles');
+    } else if (state.visual === 'spectrum2d') drawSpectrum2D(data, w, h, sensitivity);
+    else if (state.visual === 'orbital') drawOrbital(data, w, h, sensitivity);
+    else if (state.visual === 'orbit' || state.visual === 'particles') drawOrbit(data, w, h, sensitivity, state.visual === 'particles');
     else if (state.visual === 'disc') drawDisc(data, w, h, sensitivity);
     else if (state.visual === 'triangles') drawTriangles(data, w, h, sensitivity);
     else if (state.visual === 'mirror') drawMirror(data, w, h, sensitivity);
@@ -400,6 +432,9 @@
     const barWidth = Math.max(2, Math.min(8, radius * step * .68));
     const rotation = (state.visualRotation || 0) * Math.PI / 180 - Math.PI / 2;
     const intensity = Math.min(1.8, Math.max(.35, state.visualIntensity || 1)) * sensitivity;
+    const bassBins = Math.max(4, Math.floor(data.length * .07));
+    const bassEnergy = data.slice(0, bassBins).reduce((sum, value) => sum + value, 0) / (bassBins * 255);
+    const bassPulse = 1 + bassEnergy * Math.max(0, Math.min(2, state.bassResponse || 1));
     const now = performance.now() / 55;
     ctx2d.save();
     ctx2d.globalCompositeOperation = 'lighter';
@@ -409,7 +444,8 @@
     for (let i = 0; i < count; i++) {
       const value = (data[Math.floor(i * data.length / count)] || 0) / 255;
       const level = Math.pow(value, .68);
-      const length = 9 + level * (outer - radius - 9) * intensity;
+      const lowBand = i < count * .18 || i > count * .82;
+      const length = 9 + level * (outer - radius - 9) * intensity * (lowBand ? bassPulse : 1);
       const angle = i * step + rotation;
       const inner = radius + 5;
       const hue = (i / count * 360 + now) % 360;
@@ -430,6 +466,104 @@
     ctx2d.beginPath(); ctx2d.arc(cx, cy, radius, 0, Math.PI * 2); ctx2d.fill();
     ctx2d.globalAlpha = 1; ctx2d.strokeStyle = palette.highlight + 'a8'; ctx2d.lineWidth = 1.5;
     ctx2d.beginPath(); ctx2d.arc(cx, cy, radius + 2, 0, Math.PI * 2); ctx2d.stroke();
+    ctx2d.restore();
+  }
+  function drawSpectrum2D(data, w, h, sensitivity) {
+    const palette = currentPalette();
+    const count = Math.max(32, Math.min(128, state.barCount || 96));
+    const gap = Math.max(2, w / count);
+    const barWidth = Math.max(2, gap * .62);
+    const base = h * .82;
+    const maxHeight = h * .62;
+    const bassBins = Math.max(4, Math.floor(data.length * .07));
+    const bassEnergy = data.slice(0, bassBins).reduce((sum, value) => sum + value, 0) / (bassBins * 255);
+    const pulse = 1 + bassEnergy * Math.max(0, Math.min(2, state.bassResponse || 1));
+    const intensity = Math.max(.35, Math.min(1.8, state.visualIntensity || 1)) * sensitivity;
+    const rotation = (state.visualRotation || 0) * Math.PI / 180;
+    ctx2d.save();
+    ctx2d.globalCompositeOperation = 'lighter';
+    ctx2d.strokeStyle = '#9aaabd24'; ctx2d.lineWidth = 1;
+    ctx2d.beginPath(); ctx2d.moveTo(0, base + 1); ctx2d.lineTo(w, base + 1); ctx2d.stroke();
+    for (let i = 0; i < count; i++) {
+      const value = Math.pow((data[Math.floor(i * data.length / count)] || 0) / 255, .64);
+      const lowBand = i < count * .18;
+      const height = Math.max(4, Math.min(maxHeight, 5 + value * maxHeight * intensity * (lowBand ? pulse : 1)));
+      const x = i * gap + (gap - barWidth) / 2;
+      const hue = state.style === 'mono' ? 195 : (i / count * 290 + performance.now() / 36) % 360;
+      const color = state.style === 'mono' ? palette.primary : `hsl(${hue} 88% ${58 + value * 15}%)`;
+      const gradient = ctx2d.createLinearGradient(0, base - height, 0, base);
+      gradient.addColorStop(0, color); gradient.addColorStop(1, palette.secondary + '55');
+      ctx2d.fillStyle = gradient; ctx2d.globalAlpha = .38 + value * .62;
+      ctx2d.fillRect(x, base - height, barWidth, height);
+      ctx2d.globalAlpha *= .18; ctx2d.fillRect(x, base + 4, barWidth, Math.min(h - base - 7, height * .24));
+    }
+    ctx2d.globalAlpha = 1; ctx2d.strokeStyle = palette.highlight + '66'; ctx2d.lineWidth = 1.5;
+    ctx2d.beginPath(); ctx2d.moveTo(0, base); ctx2d.lineTo(w, base); ctx2d.stroke();
+    ctx2d.restore();
+  }
+  function drawOrbital(data, w, h, sensitivity) {
+    // Visual central: o grave controla uma deformação contínua do halo,
+    // evitando o salto duro das barras radiais antigas.
+    const palette = currentPalette();
+    const cx = w * .5, cy = h * .5;
+    const minSide = Math.min(w, h);
+    const baseRadius = minSide * .205;
+    const bassBins = Math.max(5, Math.floor(data.length * .09));
+    const bassEnergy = data.slice(0, bassBins).reduce((sum, value) => sum + value, 0) / (bassBins * 255);
+    const midEnergy = data.slice(bassBins, Math.floor(data.length * .3)).reduce((sum, value) => sum + value, 0) / (Math.max(1, Math.floor(data.length * .3) - bassBins) * 255);
+    const target = Math.min(1, bassEnergy * sensitivity * 1.18);
+    const smoothing = .12 + (1 - Number($('#smooth')?.value || 70) / 100) * .16;
+    state.orbitalBass = (state.orbitalBass || 0) + (target - (state.orbitalBass || 0)) * smoothing;
+    const pulse = 1 + state.orbitalBass * 0.62 * (state.pulseAmount || 1);
+    const spin = performance.now() / 9000 + (state.visualRotation || 0) * Math.PI / 180;
+    const glow = Math.max(.25, Math.min(1, state.glowAmount || .8));
+    const points = Math.max(96, Math.min(180, state.barCount + 48));
+    const drawRing = (ringIndex, radius, amplitude, alpha) => {
+      ctx2d.beginPath();
+      for (let i = 0; i <= points; i++) {
+        const t = i / points;
+        const angle = t * Math.PI * 2 + spin * (ringIndex % 2 ? -1 : 1);
+        const sampleIndex = Math.floor(t * (data.length - 1));
+        const value = Math.pow((data[sampleIndex] || 0) / 255, .62);
+        const lowWeight = Math.max(0, 1 - t * 1.7);
+        const wave = Math.sin(angle * (3 + ringIndex) + performance.now() / 850) * .025;
+        const r = radius * (1 + wave + value * amplitude * (0.55 + lowWeight * state.orbitalBass * 1.4));
+        const x = cx + Math.cos(angle) * r;
+        const y = cy + Math.sin(angle) * r;
+        if (i === 0) ctx2d.moveTo(x, y); else ctx2d.lineTo(x, y);
+      }
+      ctx2d.closePath();
+      const gradient = ctx2d.createLinearGradient(cx - radius, cy - radius, cx + radius, cy + radius);
+      gradient.addColorStop(0, palette.primary); gradient.addColorStop(.5, palette.highlight); gradient.addColorStop(1, palette.secondary);
+      ctx2d.strokeStyle = gradient; ctx2d.globalAlpha = alpha; ctx2d.lineWidth = Math.max(1.5, 2.5 + state.orbitalBass * 3);
+      ctx2d.shadowBlur = (14 + state.orbitalBass * 24) * glow; ctx2d.shadowColor = palette.primary;
+      ctx2d.stroke();
+    };
+    ctx2d.save();
+    ctx2d.globalCompositeOperation = 'lighter';
+    const halo = ctx2d.createRadialGradient(cx, cy, baseRadius * .25, cx, cy, baseRadius * (2.8 + state.orbitalBass));
+    halo.addColorStop(0, palette.primary + '45'); halo.addColorStop(.35, palette.secondary + '16'); halo.addColorStop(1, 'transparent');
+    ctx2d.fillStyle = halo; ctx2d.globalAlpha = .38 + state.orbitalBass * .32; ctx2d.beginPath(); ctx2d.arc(cx, cy, baseRadius * (2.6 + state.orbitalBass), 0, Math.PI * 2); ctx2d.fill();
+    drawRing(0, baseRadius * (1.42 + state.orbitalBass * .18), .24, .58 * glow);
+    drawRing(1, baseRadius * (1.68 + state.orbitalBass * .28), .34, .8 * glow);
+    drawRing(2, baseRadius * (1.94 + state.orbitalBass * .36), .46, .62 * glow);
+    ctx2d.shadowBlur = 0;
+    // Núcleo escuro mantém o elemento central legível sobre qualquer fundo.
+    ctx2d.globalCompositeOperation = 'source-over';
+    const coreRadius = baseRadius * (.74 + state.orbitalBass * .08);
+    const core = ctx2d.createRadialGradient(cx - coreRadius * .3, cy - coreRadius * .35, 2, cx, cy, coreRadius);
+    core.addColorStop(0, palette.highlight + 'd9'); core.addColorStop(.32, palette.primary + 'a8'); core.addColorStop(.78, '#071018e8'); core.addColorStop(1, '#020508f5');
+    ctx2d.fillStyle = core; ctx2d.globalAlpha = .9; ctx2d.beginPath(); ctx2d.arc(cx, cy, coreRadius, 0, Math.PI * 2); ctx2d.fill();
+    ctx2d.strokeStyle = palette.highlight + 'cc'; ctx2d.lineWidth = 2; ctx2d.beginPath(); ctx2d.arc(cx, cy, coreRadius + 2, 0, Math.PI * 2); ctx2d.stroke();
+    // Pontos orbitais respondem mais ao médio/agudo, sem competir com o grave.
+    ctx2d.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 18; i++) {
+      const angle = spin * (i % 2 ? -.65 : .65) + i * Math.PI * 2 / 18;
+      const radius = baseRadius * (2.15 + (i % 3) * .13 + midEnergy * .22);
+      const size = 1.3 + ((data[(i * 17) % data.length] || 0) / 255) * 2.3;
+      ctx2d.fillStyle = i % 2 ? palette.secondary : palette.primary; ctx2d.globalAlpha = .22 + midEnergy * .55;
+      ctx2d.beginPath(); ctx2d.arc(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius, size, 0, Math.PI * 2); ctx2d.fill();
+    }
     ctx2d.restore();
   }
   function drawDisc(data, w, h, sensitivity) {
@@ -495,12 +629,13 @@
     }
     node.innerHTML = state.exportHistory.slice().reverse().map((item, index) => {
       const time = new Date(item.time).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
-      return '<div class="history-item"><span class="history-icon">↗</span><span><b>' + escapeHtml(item.name) + '</b><small>' + escapeHtml(item.type.toUpperCase()) + ' · ' + time + '</small></span><button class="ghost-btn" data-history-download="' + index + '" type="button"' + (item.url ? '' : ' disabled') + '>Baixar</button><button class="danger-btn" data-history-delete="' + index + '" type="button" aria-label="Excluir exportação">×</button></div>';
+      return '<div class="history-item"><span class="history-icon">↗</span><span><b>' + escapeHtml(item.name) + '</b><small>' + escapeHtml(item.type.toUpperCase()) + ' · ' + time + '</small></span><button class="ghost-btn" data-history-download="' + index + '" type="button">Baixar</button><button class="danger-btn" data-history-delete="' + index + '" type="button" aria-label="Excluir exportação">×</button></div>';
     }).join('');
     node.querySelectorAll('[data-history-download]').forEach(button => button.onclick = () => {
       const item = state.exportHistory.slice().reverse()[Number(button.dataset.historyDownload)];
       if (item?.url) { const link = document.createElement('a'); link.href = item.url; link.download = item.filename || 'aurora-export'; link.click(); }
-      else toast('O arquivo só pode ser baixado novamente enquanto esta sessão estiver aberta.');
+      else if (item?.id) dbGet('export:' + item.id).then(record => { if (!record?.blob) return toast('O arquivo desta exportação não está mais disponível.'); const url = URL.createObjectURL(record.blob); const link = document.createElement('a'); link.href = url; link.download = item.filename || 'aurora-export'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1500); });
+      else toast('O arquivo desta exportação não está mais disponível.');
     });
     node.querySelectorAll('[data-history-delete]').forEach(button => button.onclick = () => {
       const reversedIndex = Number(button.dataset.historyDelete);
@@ -509,8 +644,10 @@
     });
   }
   function rememberExport(type) {
-    state.exportHistory.push({name: state.fileName || 'visualização', filename: baseExportName() + (type === 'mp3' ? '.mp3' : '-visual.' + type), type, time: Date.now(), url: state.lastExportUrl || ''});
+    const id = 'export-' + Date.now();
+    state.exportHistory.push({id, name: state.fileName || 'visualização', filename: baseExportName() + (type === 'mp3' ? '.mp3' : '-visual.' + type), type, time: Date.now(), url: ''});
     state.exportHistory = state.exportHistory.slice(-8);
+    if (state.lastExportBlob) dbPut('export:' + id, {blob: state.lastExportBlob, filename: baseExportName(), type});
     saveCounters();
     renderExportHistory();
   }
@@ -531,12 +668,14 @@
       const offline = new OfflineAudioContext(decoded.numberOfChannels, decoded.length, decoded.sampleRate);
       const source = offline.createBufferSource();
       const bass = offline.createBiquadFilter(); bass.type = 'lowshelf'; bass.frequency.value = 180; bass.gain.value = Number($('#bass').value || 0);
+      const eqFilters = [60,170,310,600,1200,3000,8000,14000].map((frequency) => { const filter = offline.createBiquadFilter(); filter.type = 'peaking'; filter.frequency.value = frequency; filter.Q.value = 1.05; filter.gain.value = Number($('#eq' + frequency).value || 0); return filter; });
       const treble = offline.createBiquadFilter(); treble.type = 'highshelf'; treble.frequency.value = 3200; treble.gain.value = Number($('#treble').value || 0);
-      source.buffer = decoded; source.connect(bass).connect(treble).connect(offline.destination); source.start();
+      const gate = offline.createDynamicsCompressor(); gate.threshold.value = -48 + Number($('#noiseReduction').value || 0) * .42; gate.knee.value = 18; gate.ratio.value = 3; gate.attack.value = .01; gate.release.value = .2;
+      source.buffer = decoded; let offlineChain = source.connect(bass); eqFilters.forEach(filter => { offlineChain = offlineChain.connect(filter); }); offlineChain.connect(treble).connect(gate).connect(offline.destination); source.start();
       rendered = await offline.startRendering();
     }
     const channels = Math.min(2, rendered.numberOfChannels);
-    const encoder = new lamejs.Mp3Encoder(channels, rendered.sampleRate, 128);
+    const encoder = new lamejs.Mp3Encoder(channels, rendered.sampleRate, 192);
     const left = toInt16(rendered.getChannelData(0));
     const right = channels > 1 ? toInt16(rendered.getChannelData(1)) : left;
     const chunks = [];
@@ -567,7 +706,7 @@
       const exportSize = state.orientation === 'portrait' ? [1080, 1920] : [1920, 1080];
       exportCanvas.width = exportSize[0]; exportCanvas.height = exportSize[1];
       const exportCtx = exportCanvas.getContext('2d', {alpha:false});
-      const stream = exportCanvas.captureStream(30);
+      const stream = exportCanvas.captureStream(60);
       if (state.recordDestination) state.recordDestination.stream.getAudioTracks().forEach(track => stream.addTrack(track));
       const recorder = new MediaRecorder(stream, {mimeType: mime});
       state.currentRecorder = recorder; state.exportCancelled = false;
@@ -708,7 +847,7 @@
       return view;
     }
     if (section === 'exports') {
-      view.innerHTML = '<div class="directory-header"><div><p class="eyebrow">ENTREGA / EXPORTAÇÕES</p><h1>Exportações</h1><p>Histórico dos arquivos criados nesta sessão.</p></div><button class="outline-btn" data-action="open-studio" type="button">← Voltar ao Studio</button></div><div class="export-directory-list">' + (state.exportHistory.length ? state.exportHistory.slice().reverse().map((item, index) => '<article class="history-item"><span class="history-icon">↗</span><span><b>' + escapeHtml(item.name) + '</b><small>' + escapeHtml(item.type.toUpperCase()) + ' · ' + new Date(item.time).toLocaleString('pt-BR') + '</small></span><div class="card-actions"><button class="ghost-btn" data-action="download-export" data-index="' + index + '" type="button"' + (item.url ? '' : ' disabled') + '>Baixar novamente</button><button class="danger-btn" data-action="delete-export" data-index="' + index + '" type="button">Excluir</button></div></article>').join('') : '<div class="directory-empty">Nenhuma exportação nesta sessão.</div>') + '</div>';
+      view.innerHTML = '<div class="directory-header"><div><p class="eyebrow">ENTREGA / EXPORTAÇÕES</p><h1>Exportações</h1><p>Histórico dos arquivos criados nesta sessão.</p></div><button class="outline-btn" data-action="open-studio" type="button">← Voltar ao Studio</button></div><div class="export-directory-list">' + (state.exportHistory.length ? state.exportHistory.slice().reverse().map((item, index) => '<article class="history-item"><span class="history-icon">↗</span><span><b>' + escapeHtml(item.name) + '</b><small>' + escapeHtml(item.type.toUpperCase()) + ' · ' + new Date(item.time).toLocaleString('pt-BR') + '</small></span><div class="card-actions"><button class="ghost-btn" data-action="download-export" data-index="' + index + '" type="button">Baixar novamente</button><button class="danger-btn" data-action="delete-export" data-index="' + index + '" type="button">Excluir</button></div></article>').join('') : '<div class="directory-empty">Nenhuma exportação nesta sessão.</div>') + '</div>';
       return view;
     }
     if (section === 'presets') {
@@ -733,7 +872,7 @@
       const values = [
         {bass:5,treble:2,sensitivity:85,smooth:60,visual:'disc',style:'aurora'},
         {bass:0,treble:4,sensitivity:65,smooth:82,visual:'wave',style:'mono'},
-        {bass:8,treble:5,sensitivity:120,smooth:45,visual:'bars',style:'ember'}
+        {bass:8,treble:5,sensitivity:120,smooth:45,visual:'orbital',style:'ember'}
       ][Number(button.dataset.index)] || {};
       applyPreset(values); showSection('studio'); toast('Preset aplicado.');
     });
@@ -753,6 +892,7 @@
     view.querySelectorAll('[data-action="download-export"]').forEach(button => button.onclick = () => {
       const item = state.exportHistory.slice().reverse()[Number(button.dataset.index)];
       if (item?.url) { const link = document.createElement('a'); link.href = item.url; link.download = item.filename || item.name || 'aurora-export'; link.click(); }
+      else if (item?.id) dbGet('export:' + item.id).then(record => { if (!record?.blob) return toast('O arquivo desta exportação não está mais disponível.'); const url = URL.createObjectURL(record.blob); const link = document.createElement('a'); link.href = url; link.download = item.filename || item.name || 'aurora-export'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1500); });
     });
     view.querySelectorAll('[data-action="delete-export"]').forEach(button => button.onclick = () => {
       const reversedIndex = Number(button.dataset.index);
@@ -760,7 +900,7 @@
       if (index >= 0) state.exportHistory.splice(index, 1);
       saveCounters(); showSection('exports'); toast('Exportação excluída do histórico.');
     });
-    view.querySelectorAll('[data-action="visualizers"]').forEach(button => button.onclick = () => { const modes=['bars','disc','triangles','mirror','wave','particles']; const mode=modes[Number(button.dataset.index)]||'bars'; state.visual=mode; document.querySelectorAll('[data-visual]').forEach(x=>x.classList.toggle('active',x.dataset.visual===mode)); showSection('studio'); toast('Visual ' + mode + ' selecionado.'); });
+    view.querySelectorAll('[data-action="visualizers"]').forEach(button => button.onclick = () => { const modes=['orbital','bars','spectrum2d','disc','triangles','mirror','wave','particles']; const mode=modes[Number(button.dataset.index)]||'orbital'; state.visual=mode; document.querySelectorAll('[data-visual]').forEach(x=>x.classList.toggle('active',x.dataset.visual===mode)); showSection('studio'); toast('Visual ' + mode + ' selecionado.'); });
     view.querySelectorAll('[data-action="mixer"]').forEach(button => button.onclick = () => { showSection('studio'); document.querySelector('.mixer-panel')?.scrollIntoView({behavior:'smooth',block:'center'}); });
     view.querySelectorAll('[data-action="settings"]').forEach(button => button.onclick = () => { showSection('studio'); document.querySelector('#compositionPanel')?.scrollIntoView({behavior:'smooth',block:'center'}); toast('Preferências abertas no Studio.'); });
   }
@@ -798,7 +938,7 @@
     document.querySelectorAll('[data-eq]').forEach(input => input.addEventListener('input', e => setControl('eq' + e.target.dataset.eq, e.target.value)));
     $('#muteBtn').onclick = () => { state.muted = !state.muted; audio.muted = state.muted; $('#muteBtn').textContent = state.muted ? 'Unmute' : 'Mute'; };
     document.querySelectorAll('[data-visual]').forEach(btn => btn.onclick = () => { state.visual = btn.dataset.visual; document.querySelectorAll('[data-visual]').forEach(x => x.classList.toggle('active', x === btn)); });
-    ['barCount','visualIntensity','visualRotation','visualOpacity','barPlacement'].forEach(id => { const input=$('#'+id); if(input){ input.value = id==='barCount'?state.barCount:id==='visualIntensity'?Math.round(state.visualIntensity*100):id==='visualRotation'?state.visualRotation:id==='visualOpacity'?Math.round(state.visualOpacity*100):state.barPlacement; input.addEventListener('input', e => setVisualSetting(id, e.target.value)); setVisualSetting(id,input.value); } });
+    ['barCount','visualIntensity','visualRotation','visualOpacity','bassResponse','pulseAmount','glowAmount','barPlacement'].forEach(id => { const input=$('#'+id); if(input){ input.value = id==='barCount'?state.barCount:id==='visualIntensity'?Math.round(state.visualIntensity*100):id==='visualRotation'?state.visualRotation:id==='visualOpacity'?Math.round(state.visualOpacity*100):id==='bassResponse'?Math.round(state.bassResponse*100):id==='pulseAmount'?Math.round(state.pulseAmount*100):id==='glowAmount'?Math.round(state.glowAmount*100):state.barPlacement; input.addEventListener('input', e => setVisualSetting(id, e.target.value)); setVisualSetting(id,input.value); } });
     document.querySelectorAll('.nav-item').forEach(item => item.onclick = (event) => { event.preventDefault(); showSection(item.dataset.section); $('#sidebar').classList.remove('open'); window.scrollTo({top:0,behavior:'smooth'}); });
     $('#menuToggle').onclick = () => $('#sidebar').classList.add('open'); $('#closeMenu').onclick = () => $('#sidebar').classList.remove('open');
     if (!window.AURORA_AUTH_OPTIONAL) {
