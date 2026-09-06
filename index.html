@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260905-studio-v10">
+  <link rel="stylesheet" href="styles.css?v=20260905-studio-v12">
 </head>
 <body>
   <div class="liquid liquid-a"></div><div class="liquid liquid-b"></div><div class="grid-glow"></div>
@@ -69,12 +69,15 @@
             <audio id="audio" controls preload="metadata"></audio>
           </div>
           <div class="panel visual-panel">
-            <div class="panel-heading"><div><span class="kicker">02 · PALCO VISUAL</span><h2>Composição ao vivo</h2></div><div class="visual-tools"><button class="tiny active" data-visual="bars" title="Barras radiais">Barras</button><button class="tiny" data-visual="disc" title="Disco giratório">Disco</button><button class="tiny" data-visual="triangles" title="Triângulos luminosos">Triângulos</button><button class="tiny" data-visual="mirror" title="Espectro espelhado">Espelho</button><button class="tiny" data-visual="wave" title="Onda de áudio">Onda</button><button class="tiny" data-visual="particles" title="Partículas">Partículas</button></div></div>
+            <div class="panel-heading"><div><span class="kicker">02 · PALCO VISUAL</span><h2>Composição ao vivo</h2></div><div class="visual-tools"><button class="tiny active" data-visual="orbital" title="Halo orbital reativo aos graves">Orbital</button><button class="tiny" data-visual="bars" title="Barras radiais">Barras</button><button class="tiny" data-visual="spectrum2d" title="Espectro 2D com graves">Espectro 2D</button><button class="tiny" data-visual="disc" title="Disco giratório">Disco</button><button class="tiny" data-visual="triangles" title="Triângulos luminosos">Triângulos</button><button class="tiny" data-visual="mirror" title="Espectro espelhado">Espelho</button><button class="tiny" data-visual="wave" title="Onda de áudio">Onda</button><button class="tiny" data-visual="particles" title="Partículas">Partículas</button></div></div>
             <div class="visual-settings" aria-label="Configurações do visualizador">
               <label>Qtd. barras <output id="barCountValue">96</output><input id="barCount" type="range" min="32" max="128" step="8" value="96"></label>
               <label>Intensidade <output id="visualIntensityValue">100%</output><input id="visualIntensity" type="range" min="40" max="160" value="100"></label>
               <label>Rotação <output id="visualRotationValue">0°</output><input id="visualRotation" type="range" min="-180" max="180" value="0"></label>
               <label>Opacidade <output id="visualOpacityValue">100%</output><input id="visualOpacity" type="range" min="20" max="100" value="100"></label>
+              <label>Resposta aos graves <output id="bassResponseValue">100%</output><input id="bassResponse" type="range" min="0" max="200" value="100"></label>
+              <label>Pulso do halo <output id="pulseAmountValue">100%</output><input id="pulseAmount" type="range" min="0" max="200" value="100"></label>
+              <label>Brilho do halo <output id="glowAmountValue">80%</output><input id="glowAmount" type="range" min="0" max="140" value="80"></label>
               <label>Posição das barras<select id="barPlacement"><option value="outside">Para fora</option><option value="inside">Para dentro</option><option value="both">Dos dois lados</option></select></label>
             </div>
             <div class="canvas-wrap" id="canvasWrap"><canvas id="visualizer" aria-label="Visualizador de frequência"></canvas><div class="canvas-overlay"><span id="visualStatus">Aguardando áudio</span><span class="fps">60 FPS</span></div></div>
@@ -124,7 +127,7 @@
   <div class="toast" id="toast" role="status"></div>
   <div id="loginModal" hidden aria-hidden="true"><span id="loginStatus"></span><button id="connectGoogle" type="button"></button><button id="closeModal" type="button"></button></div>
   <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
-  <script src="config.js?v=20260904-redirect"></script><script src="app.js?v=20260905-studio-v4"></script>
+  <script src="config.js?v=20260904-redirect"></script><script src="app.js?v=20260905-studio-v6"></script>
   <script>
     (() => {
       const go = (event) => { if (event) event.preventDefault(); window.location.assign('/login.html'); };
