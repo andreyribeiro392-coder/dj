@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260906-core-v13">
+  <link rel="stylesheet" href="styles.css?v=20260906-wave-v14">
 </head>
 <body>
   <div class="liquid liquid-a"></div><div class="liquid liquid-b"></div><div class="grid-glow"></div>
@@ -80,7 +80,7 @@
               <label>Brilho do halo <output id="glowAmountValue">80%</output><input id="glowAmount" type="range" min="0" max="140" value="80"></label>
               <label>Posição das barras<select id="barPlacement"><option value="outside">Para fora</option><option value="inside">Para dentro</option><option value="both">Dos dois lados</option></select></label>
             </div>
-            <div class="canvas-wrap" id="canvasWrap"><canvas id="visualizer" aria-label="Visualizador de frequência"></canvas><div class="canvas-overlay"><span id="visualStatus">Aguardando áudio</span><span class="fps">60 FPS</span></div><aside class="scene-core-editor" aria-label="Editar núcleo central"><div class="scene-core-heading"><span>NÚCLEO CENTRAL</span><button id="toggleCoreEditor" type="button" aria-expanded="false" aria-controls="coreEditorBody">Editar</button></div><div class="scene-core-body" id="coreEditorBody" hidden><label class="core-upload">Logo ou imagem<input id="centerImageInput" type="file" accept="image/*"><span id="centerImageName">Usar imagem própria</span></label><label>Texto do núcleo<input id="centerText" type="text" maxlength="16" placeholder="A"></label><div class="core-editor-ranges"><label>Tamanho <output id="centerSizeValue">100%</output><input id="centerSize" type="range" min="55" max="135" value="100"></label><label>Opacidade <output id="centerOpacityValue">100%</output><input id="centerOpacity" type="range" min="20" max="100" value="100"></label></div><div class="core-editor-actions"><button id="clearCenterArt" type="button">Limpar arte</button><button id="exportCenterPng" type="button">Baixar PNG</button></div></div></aside></div>
+            <div class="canvas-wrap" id="canvasWrap"><canvas id="visualizer" aria-label="Visualizador de frequência"></canvas><div class="canvas-overlay"><span id="visualStatus">Aguardando áudio</span><span class="fps">60 FPS</span></div><aside class="scene-core-editor" aria-label="Editar núcleo central"><div class="scene-core-heading"><span>NÚCLEO CENTRAL</span><button id="toggleCoreEditor" type="button" aria-expanded="false" aria-controls="coreEditorBody">Editar</button></div><div class="scene-core-body" id="coreEditorBody" hidden><label class="core-upload">Logo ou imagem<input id="centerImageInput" type="file" accept="image/*"><span id="centerImageName">Usar imagem própria</span></label><label>Texto do núcleo<input id="centerText" type="text" maxlength="16" placeholder="A"></label><div class="core-editor-ranges"><label>Tamanho <output id="centerSizeValue">100%</output><input id="centerSize" type="range" min="55" max="135" value="100"></label><label>Opacidade <output id="centerOpacityValue">100%</output><input id="centerOpacity" type="range" min="20" max="100" value="100"></label></div><div class="core-wave-editor"><label>Forma das ondas<select id="orbitalShape"><option value="ripple">Anéis suaves</option><option value="pulse">Pulso orgânico</option><option value="petals">Pétalas neon</option><option value="star">Estrela sonora</option><option value="orbit">Órbita dupla</option></select></label><div class="core-editor-ranges"><label>Qtd. ondas <output id="orbitalLayersValue">3</output><input id="orbitalLayers" type="range" min="1" max="6" value="3"></label><label>Espessura <output id="orbitalThicknessValue">100%</output><input id="orbitalThickness" type="range" min="40" max="180" value="100"></label></div></div><div class="core-editor-actions"><button id="clearCenterArt" type="button">Limpar arte</button><button id="exportCenterPng" type="button">Baixar PNG</button></div></div></aside></div>
             <div class="now-playing"><div class="mini-cover">◎</div><div class="now-copy"><b id="nowTitle">Nenhuma faixa selecionada</b><small id="nowMeta">Importe um áudio para começar</small></div><button class="play-btn" id="playBtn" type="button" aria-label="Reproduzir">▶</button></div>
           </div>
           <div class="panel mixer-panel">
@@ -127,7 +127,7 @@
   <div class="toast" id="toast" role="status"></div>
   <div id="loginModal" hidden aria-hidden="true"><span id="loginStatus"></span><button id="connectGoogle" type="button"></button><button id="closeModal" type="button"></button></div>
   <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
-  <script src="config.js?v=20260904-redirect"></script><script src="app.js?v=20260906-core-v7"></script>
+  <script src="config.js?v=20260904-redirect"></script><script src="app.js?v=20260906-wave-v8"></script>
   <script>
     (() => {
       const go = (event) => { if (event) event.preventDefault(); window.location.assign('/login.html'); };
