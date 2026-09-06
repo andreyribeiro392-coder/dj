@@ -28,6 +28,11 @@
     exportFormat: 'webm',
     style: 'aurora',
     accent: '#5be6ed',
+    centerImage: null,
+    centerImageUrl: '',
+    centerText: localStorage.getItem('aurora-center-text') || 'A',
+    centerSize: Number(localStorage.getItem('aurora-center-size') || 100) / 100,
+    centerOpacity: Number(localStorage.getItem('aurora-center-opacity') || 100) / 100,
     backgroundImage: null,
     defaultArtwork: null,
     backgroundVideo: null,
@@ -117,6 +122,9 @@
       visual: state.visual,
       style: state.style,
       accent: state.accent,
+      centerText: state.centerText,
+      centerSize: state.centerSize,
+      centerOpacity: state.centerOpacity,
       barCount: state.barCount,
       visualIntensity: state.visualIntensity,
       visualRotation: state.visualRotation,
@@ -147,6 +155,9 @@
   function applyPreset(values) {
     if (!values) return;
     if (values.style && stylePresets[values.style]) applyVisualStyle(values.style);
+    [['centerText', values.centerText], ['centerSize', Math.round((values.centerSize || 1) * 100)], ['centerOpacity', Math.round((values.centerOpacity || 1) * 100)]].forEach(([id, value]) => {
+      const input = $('#' + id); if (input && value !== undefined) { input.value = value; setCenterSetting(id, value); }
+    });
     if (values.visual) {
       state.visual = values.visual;
       document.querySelectorAll('[data-visual]').forEach(x => x.classList.toggle('active', x.dataset.visual === state.visual));
@@ -203,8 +214,10 @@
       loadFile(file, {restored: true});
       const imageRecord = await dbGet('background-image');
       const videoRecord = await dbGet('background-video');
+      const centerRecord = await dbGet('center-art');
       if (imageRecord?.blob) { const imageFile = typeof File === 'function' ? new File([imageRecord.blob], imageRecord.name || 'fundo.png', {type:imageRecord.type || imageRecord.blob.type}) : imageRecord.blob; setBackgroundImage(imageFile); }
       else if (videoRecord?.blob) { const videoFile = typeof File === 'function' ? new File([videoRecord.blob], videoRecord.name || 'fundo.mp4', {type:videoRecord.type || videoRecord.blob.type}) : videoRecord.blob; setBackgroundVideo(videoFile); }
+      if (centerRecord?.blob) { const centerFile = typeof File === 'function' ? new File([centerRecord.blob], centerRecord.name || 'logo.png', {type:centerRecord.type || centerRecord.blob.type}) : centerRecord.blob; setCenterImage(centerFile, {silent:true}); }
       toast('Sessão restaurada neste dispositivo.');
     } catch (_) {}
   }
@@ -321,6 +334,68 @@
     localStorage.setItem('aurora-' + id.replace(/[A-Z]/g, m => '-' + m.toLowerCase()), String(value));
     const labels = {barCount:n, visualIntensity:Math.round(state.visualIntensity*100)+'%', visualRotation:n+'°', visualOpacity:Math.round(state.visualOpacity*100)+'%', bassResponse:Math.round(state.bassResponse*100)+'%', pulseAmount:Math.round(state.pulseAmount*100)+'%', glowAmount:Math.round(state.glowAmount*100)+'%'};
     const node = $('#' + id + 'Value'); if (node && labels[id] !== undefined) node.textContent = labels[id];
+  }
+  function setCenterSetting(id, value) {
+    if (id === 'centerText') state.centerText = String(value || '').trim().slice(0, 16) || 'A';
+    if (id === 'centerSize') state.centerSize = Number(value) / 100;
+    if (id === 'centerOpacity') state.centerOpacity = Number(value) / 100;
+    localStorage.setItem('aurora-' + id.replace(/[A-Z]/g, match => '-' + match.toLowerCase()), String(id === 'centerText' ? state.centerText : value));
+    const label = $('#' + id + 'Value');
+    if (label && id !== 'centerText') label.textContent = Math.round(Number(value)) + '%';
+  }
+  function setCenterImage(file, options = {}) {
+    if (!file || !String(file.type || '').startsWith('image/')) { if (!options.silent) toast('Escolha uma imagem PNG, JPG ou WEBP para o núcleo.'); return; }
+    if (file.size > 25 * 1024 * 1024) { if (!options.silent) toast('A imagem do núcleo ultrapassa 25 MB.'); return; }
+    if (state.centerImageUrl) URL.revokeObjectURL(state.centerImageUrl);
+    state.centerImageUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      state.centerImage = image;
+      const name = $('#centerImageName'); if (name) name.textContent = file.name || 'Imagem personalizada';
+      if (!options.restored) dbPut('center-art', {blob:file, name:file.name, type:file.type});
+      if (!options.silent) toast('Arte central atualizada. Ela também será usada na exportação.');
+    };
+    image.onerror = () => { if (!options.silent) toast('Não foi possível abrir essa imagem.'); };
+    image.src = state.centerImageUrl;
+  }
+  function clearCenterArt() {
+    if (state.centerImageUrl) URL.revokeObjectURL(state.centerImageUrl);
+    state.centerImageUrl = ''; state.centerImage = null;
+    const input = $('#centerImageInput'); if (input) input.value = '';
+    const name = $('#centerImageName'); if (name) name.textContent = 'Usar imagem própria';
+    dbPut('center-art', null);
+    toast('A imagem foi removida. O núcleo voltou ao texto personalizado.');
+  }
+  function renderCenterArtwork(context, cx, cy, radius) {
+    const artRadius = radius * .82 * Math.max(.55, Math.min(1.35, state.centerSize || 1));
+    context.save();
+    context.globalAlpha = Math.max(.2, Math.min(1, state.centerOpacity || 1));
+    context.beginPath(); context.arc(cx, cy, artRadius, 0, Math.PI * 2); context.clip();
+    if (state.centerImage?.complete) {
+      const iw = state.centerImage.naturalWidth || 1, ih = state.centerImage.naturalHeight || 1;
+      const scale = Math.min(artRadius * 2 / iw, artRadius * 2 / ih);
+      const dw = iw * scale, dh = ih * scale;
+      context.drawImage(state.centerImage, cx - dw / 2, cy - dh / 2, dw, dh);
+    } else {
+      const text = String(state.centerText || 'A').toUpperCase();
+      context.textAlign = 'center'; context.textBaseline = 'middle';
+      context.font = '800 ' + Math.max(28, Math.floor(artRadius * (text.length > 3 ? .58 : 1.02))) + 'px "Space Grotesk", system-ui, sans-serif';
+      context.fillStyle = '#f4fbff'; context.shadowBlur = 18; context.shadowColor = currentPalette().highlight;
+      context.fillText(text, cx, cy + artRadius * .03);
+    }
+    context.restore();
+  }
+  function exportCenterPng() {
+    const output = document.createElement('canvas'); output.width = 1080; output.height = 1080;
+    const context = output.getContext('2d');
+    const palette = currentPalette(), cx = 540, cy = 540, radius = 412;
+    const halo = context.createRadialGradient(cx, cy, radius * .2, cx, cy, radius * 1.12);
+    halo.addColorStop(0, palette.primary + '60'); halo.addColorStop(.7, palette.secondary + '24'); halo.addColorStop(1, 'transparent');
+    context.fillStyle = halo; context.beginPath(); context.arc(cx, cy, radius * 1.12, 0, Math.PI * 2); context.fill();
+    context.fillStyle = '#061018'; context.beginPath(); context.arc(cx, cy, radius, 0, Math.PI * 2); context.fill();
+    context.strokeStyle = palette.highlight; context.lineWidth = 10; context.shadowBlur = 24; context.shadowColor = palette.primary; context.beginPath(); context.arc(cx, cy, radius, 0, Math.PI * 2); context.stroke(); context.shadowBlur = 0;
+    renderCenterArtwork(context, cx, cy, radius);
+    output.toBlob(blob => { if (!blob) return toast('Não foi possível gerar o PNG.'); downloadBlob(blob, 'aurora-nucleo.png'); toast('PNG do núcleo criado.'); }, 'image/png');
   }
   function setBackgroundSetting(id, value) {
     const n = Number(value);
@@ -554,6 +629,7 @@
     const core = ctx2d.createRadialGradient(cx - coreRadius * .3, cy - coreRadius * .35, 2, cx, cy, coreRadius);
     core.addColorStop(0, palette.highlight + 'd9'); core.addColorStop(.32, palette.primary + 'a8'); core.addColorStop(.78, '#071018e8'); core.addColorStop(1, '#020508f5');
     ctx2d.fillStyle = core; ctx2d.globalAlpha = .9; ctx2d.beginPath(); ctx2d.arc(cx, cy, coreRadius, 0, Math.PI * 2); ctx2d.fill();
+    renderCenterArtwork(ctx2d, cx, cy, coreRadius);
     ctx2d.strokeStyle = palette.highlight + 'cc'; ctx2d.lineWidth = 2; ctx2d.beginPath(); ctx2d.arc(cx, cy, coreRadius + 2, 0, Math.PI * 2); ctx2d.stroke();
     // Pontos orbitais respondem mais ao médio/agudo, sem competir com o grave.
     ctx2d.globalCompositeOperation = 'lighter';
@@ -939,6 +1015,13 @@
     $('#muteBtn').onclick = () => { state.muted = !state.muted; audio.muted = state.muted; $('#muteBtn').textContent = state.muted ? 'Unmute' : 'Mute'; };
     document.querySelectorAll('[data-visual]').forEach(btn => btn.onclick = () => { state.visual = btn.dataset.visual; document.querySelectorAll('[data-visual]').forEach(x => x.classList.toggle('active', x === btn)); });
     ['barCount','visualIntensity','visualRotation','visualOpacity','bassResponse','pulseAmount','glowAmount','barPlacement'].forEach(id => { const input=$('#'+id); if(input){ input.value = id==='barCount'?state.barCount:id==='visualIntensity'?Math.round(state.visualIntensity*100):id==='visualRotation'?state.visualRotation:id==='visualOpacity'?Math.round(state.visualOpacity*100):id==='bassResponse'?Math.round(state.bassResponse*100):id==='pulseAmount'?Math.round(state.pulseAmount*100):id==='glowAmount'?Math.round(state.glowAmount*100):state.barPlacement; input.addEventListener('input', e => setVisualSetting(id, e.target.value)); setVisualSetting(id,input.value); } });
+    const coreToggle = $('#toggleCoreEditor'), coreBody = $('#coreEditorBody');
+    if (coreToggle && coreBody) coreToggle.onclick = () => { const open = coreBody.hidden; coreBody.hidden = !open; coreToggle.setAttribute('aria-expanded', String(open)); coreToggle.textContent = open ? 'Fechar' : 'Editar'; };
+    const centerText = $('#centerText'); if (centerText) { centerText.value = state.centerText; centerText.addEventListener('input', event => setCenterSetting('centerText', event.target.value)); }
+    ['centerSize','centerOpacity'].forEach(id => { const input = $('#' + id); if (input) { input.value = Math.round((id === 'centerSize' ? state.centerSize : state.centerOpacity) * 100); input.addEventListener('input', event => setCenterSetting(id, event.target.value)); setCenterSetting(id, input.value); } });
+    $('#centerImageInput')?.addEventListener('change', event => setCenterImage(event.target.files[0]));
+    $('#clearCenterArt')?.addEventListener('click', clearCenterArt);
+    $('#exportCenterPng')?.addEventListener('click', exportCenterPng);
     document.querySelectorAll('.nav-item').forEach(item => item.onclick = (event) => { event.preventDefault(); showSection(item.dataset.section); $('#sidebar').classList.remove('open'); window.scrollTo({top:0,behavior:'smooth'}); });
     $('#menuToggle').onclick = () => $('#sidebar').classList.add('open'); $('#closeMenu').onclick = () => $('#sidebar').classList.remove('open');
     if (!window.AURORA_AUTH_OPTIONAL) {
