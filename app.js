@@ -36,6 +36,9 @@
     orbitalShape: localStorage.getItem('aurora-orbital-shape') || 'ripple',
     orbitalLayers: Number(localStorage.getItem('aurora-orbital-layers') || 3),
     orbitalThickness: Number(localStorage.getItem('aurora-orbital-thickness') || 100) / 100,
+    orbitalOverlay: null,
+    orbitalOverlayUrl: '',
+    orbitalOverlayOpacity: Number(localStorage.getItem('aurora-orbital-overlay-opacity') || 100) / 100,
     backgroundImage: null,
     defaultArtwork: null,
     backgroundVideo: null,
@@ -131,6 +134,7 @@
       orbitalShape: state.orbitalShape,
       orbitalLayers: state.orbitalLayers,
       orbitalThickness: state.orbitalThickness,
+      orbitalOverlayOpacity: state.orbitalOverlayOpacity,
       barCount: state.barCount,
       visualIntensity: state.visualIntensity,
       visualRotation: state.visualRotation,
@@ -167,6 +171,10 @@
     [['orbitalShape', values.orbitalShape || 'ripple'], ['orbitalLayers', values.orbitalLayers || 3], ['orbitalThickness', Math.round((values.orbitalThickness || 1) * 100)]].forEach(([id, value]) => {
       const input = $('#' + id); if (input && value !== undefined) { input.value = value; setOrbitalSetting(id, value); }
     });
+    if (values.orbitalOverlayOpacity !== undefined) {
+      const input = $('#orbitalOverlayOpacity');
+      if (input) { input.value = Math.round(Number(values.orbitalOverlayOpacity) * 100); setOrbitalOverlaySetting(input.value); }
+    }
     if (values.visual) {
       state.visual = values.visual;
       document.querySelectorAll('[data-visual]').forEach(x => x.classList.toggle('active', x.dataset.visual === state.visual));
@@ -224,9 +232,11 @@
       const imageRecord = await dbGet('background-image');
       const videoRecord = await dbGet('background-video');
       const centerRecord = await dbGet('center-art');
+      const overlayRecord = await dbGet('wave-overlay');
       if (imageRecord?.blob) { const imageFile = typeof File === 'function' ? new File([imageRecord.blob], imageRecord.name || 'fundo.png', {type:imageRecord.type || imageRecord.blob.type}) : imageRecord.blob; setBackgroundImage(imageFile); }
       else if (videoRecord?.blob) { const videoFile = typeof File === 'function' ? new File([videoRecord.blob], videoRecord.name || 'fundo.mp4', {type:videoRecord.type || videoRecord.blob.type}) : videoRecord.blob; setBackgroundVideo(videoFile); }
       if (centerRecord?.blob) { const centerFile = typeof File === 'function' ? new File([centerRecord.blob], centerRecord.name || 'logo.png', {type:centerRecord.type || centerRecord.blob.type}) : centerRecord.blob; setCenterImage(centerFile, {silent:true}); }
+      if (overlayRecord?.blob) { const overlayFile = typeof File === 'function' ? new File([overlayRecord.blob], overlayRecord.name || 'ondas.png', {type:overlayRecord.type || overlayRecord.blob.type}) : overlayRecord.blob; setOrbitalOverlay(overlayFile, {silent:true, restored:true}); }
       toast('Sessão restaurada neste dispositivo.');
     } catch (_) {}
   }
@@ -360,6 +370,13 @@
     const output = $('#' + id + 'Value');
     if (output) output.textContent = id === 'orbitalThickness' ? Math.round(state.orbitalThickness * 100) + '%' : String(state.orbitalLayers);
   }
+  function setOrbitalOverlaySetting(value) {
+    const n = Math.max(10, Math.min(100, Number(value) || 100));
+    state.orbitalOverlayOpacity = n / 100;
+    localStorage.setItem('aurora-orbital-overlay-opacity', String(n));
+    const input = $('#orbitalOverlayOpacity'); if (input && input.value !== String(n)) input.value = String(n);
+    const output = $('#orbitalOverlayOpacityValue'); if (output) output.textContent = n + '%';
+  }
   function setCenterImage(file, options = {}) {
     if (!file || !String(file.type || '').startsWith('image/')) { if (!options.silent) toast('Escolha uma imagem PNG, JPG ou WEBP para o núcleo.'); return; }
     if (file.size > 25 * 1024 * 1024) { if (!options.silent) toast('A imagem do núcleo ultrapassa 25 MB.'); return; }
@@ -382,6 +399,34 @@
     const name = $('#centerImageName'); if (name) name.textContent = 'Usar imagem própria';
     dbPut('center-art', null);
     toast('A imagem foi removida. O núcleo voltou ao texto personalizado.');
+  }
+  function setOrbitalOverlay(file, options = {}) {
+    if (!file) return;
+    const type = String(file.type || '').toLowerCase();
+    if (!['image/png', 'image/webp', 'image/jpeg'].includes(type)) { if (!options.silent) toast('Escolha uma textura PNG, WEBP ou JPG para as ondas.'); return; }
+    if (file.size > 25 * 1024 * 1024) { if (!options.silent) toast('A textura das ondas ultrapassa 25 MB.'); return; }
+    if (state.orbitalOverlayUrl) URL.revokeObjectURL(state.orbitalOverlayUrl);
+    state.orbitalOverlayUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      state.orbitalOverlay = image;
+      const name = $('#orbitalOverlayName'); if (name) name.textContent = file.name || 'Textura personalizada';
+      if (!options.restored) dbPut('wave-overlay', {blob:file, name:file.name, type:file.type});
+      if (!options.silent) toast('Textura das ondas aplicada e incluída na exportação.');
+    };
+    image.onerror = () => {
+      state.orbitalOverlay = null;
+      if (!options.silent) toast('Não foi possível abrir essa textura.');
+    };
+    image.src = state.orbitalOverlayUrl;
+  }
+  function clearOrbitalOverlay() {
+    if (state.orbitalOverlayUrl) URL.revokeObjectURL(state.orbitalOverlayUrl);
+    state.orbitalOverlayUrl = ''; state.orbitalOverlay = null;
+    const input = $('#orbitalOverlayInput'); if (input) input.value = '';
+    const name = $('#orbitalOverlayName'); if (name) name.textContent = 'PNG transparente recomendado';
+    dbPut('wave-overlay', null);
+    toast('Textura das ondas removida.');
   }
   function renderCenterArtwork(context, cx, cy, radius) {
     const artRadius = radius * .82 * Math.max(.55, Math.min(1.35, state.centerSize || 1));
@@ -647,6 +692,24 @@
     for (let ringIndex = 0; ringIndex < layerCount; ringIndex++) {
       const ratio = layerCount === 1 ? .5 : ringIndex / (layerCount - 1);
       drawRing(ringIndex, baseRadius * (1.36 + ratio * .72 + state.orbitalBass * (.16 + ratio * .2)), .22 + ratio * .26, (.5 + (1 - Math.abs(ratio - .5)) * .32) * glow);
+    }
+    // Textura importada: uma camada de arte transparente que gira devagar e
+    // respira com o grave, mantendo a imagem inteira sem cortes.
+    if (state.orbitalOverlay?.complete && state.orbitalOverlay.naturalWidth) {
+      const image = state.orbitalOverlay;
+      const maxSize = baseRadius * (2.42 + state.orbitalBass * .22) * pulse;
+      const imageRatio = (image.naturalWidth || 1) / (image.naturalHeight || 1);
+      const dw = imageRatio >= 1 ? maxSize : maxSize * imageRatio;
+      const dh = imageRatio >= 1 ? maxSize / imageRatio : maxSize;
+      ctx2d.save();
+      ctx2d.translate(cx, cy);
+      ctx2d.rotate(spin * .42);
+      ctx2d.globalCompositeOperation = 'lighter';
+      ctx2d.globalAlpha = Math.max(.08, Math.min(1, state.orbitalOverlayOpacity || 1)) * (.52 + state.orbitalBass * .48);
+      ctx2d.shadowBlur = 12 + state.orbitalBass * 20;
+      ctx2d.shadowColor = palette.primary;
+      ctx2d.drawImage(image, -dw / 2, -dh / 2, dw, dh);
+      ctx2d.restore();
     }
     ctx2d.shadowBlur = 0;
     // Núcleo escuro mantém o elemento central legível sobre qualquer fundo.
@@ -1047,6 +1110,11 @@
     ['centerSize','centerOpacity'].forEach(id => { const input = $('#' + id); if (input) { input.value = Math.round((id === 'centerSize' ? state.centerSize : state.centerOpacity) * 100); input.addEventListener('input', event => setCenterSetting(id, event.target.value)); setCenterSetting(id, input.value); } });
     const orbitalShape = $('#orbitalShape'); if (orbitalShape) { orbitalShape.value = state.orbitalShape; orbitalShape.addEventListener('change', event => setOrbitalSetting('orbitalShape', event.target.value)); }
     ['orbitalLayers','orbitalThickness'].forEach(id => { const input = $('#' + id); if (input) { input.value = id === 'orbitalLayers' ? state.orbitalLayers : Math.round(state.orbitalThickness * 100); input.addEventListener('input', event => setOrbitalSetting(id, event.target.value)); setOrbitalSetting(id, input.value); } });
+    const orbitalOverlayInput = $('#orbitalOverlayInput');
+    if (orbitalOverlayInput) orbitalOverlayInput.addEventListener('change', event => setOrbitalOverlay(event.target.files[0]));
+    const orbitalOverlayOpacity = $('#orbitalOverlayOpacity');
+    if (orbitalOverlayOpacity) { orbitalOverlayOpacity.value = Math.round(state.orbitalOverlayOpacity * 100); orbitalOverlayOpacity.addEventListener('input', event => setOrbitalOverlaySetting(event.target.value)); setOrbitalOverlaySetting(orbitalOverlayOpacity.value); }
+    $('#clearOrbitalOverlay')?.addEventListener('click', clearOrbitalOverlay);
     $('#centerImageInput')?.addEventListener('change', event => setCenterImage(event.target.files[0]));
     $('#clearCenterArt')?.addEventListener('click', clearCenterArt);
     $('#exportCenterPng')?.addEventListener('click', exportCenterPng);
@@ -1079,13 +1147,15 @@
     $('#clearSession').onclick = () => {
       if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
       if (state.backgroundUrl) URL.revokeObjectURL(state.backgroundUrl);
+      if (state.orbitalOverlayUrl) URL.revokeObjectURL(state.orbitalOverlayUrl);
       if (state.backgroundVideo) { state.backgroundVideo.pause(); state.backgroundVideo.removeAttribute('src'); state.backgroundVideo.load(); }
       state.objectUrl=''; state.fileBlob=null; state.fileKey=''; state.fileName=''; state.backgroundUrl=''; state.backgroundImage=state.defaultArtwork; state.backgroundVideo=null; $('#canvasWrap')?.classList.remove('has-custom-bg');
+      state.orbitalOverlayUrl=''; state.orbitalOverlay=null;
       audio.pause(); audio.removeAttribute('src'); audio.load();
       const imagePreview=$('#bgImagePreview'), videoPreview=$('#bgVideoPreview'); if(imagePreview){imagePreview.removeAttribute('src');imagePreview.hidden=true;} if(videoPreview){videoPreview.pause();videoPreview.removeAttribute('src');videoPreview.hidden=true;}
       $('#trackInfo').classList.add('empty'); $('#trackInfo').innerHTML='<div class="track-art">♪</div><div><b>Nenhuma faixa carregada</b><small>Seu áudio fica somente neste dispositivo</small></div><span class="track-time">—</span>';
       $('#nowTitle').textContent='Nenhuma faixa selecionada'; $('#nowMeta').textContent='Importe um áudio para começar';
-      dbPut('session', null); dbPut('background-image', null); dbPut('background-video', null);
+      dbPut('session', null); dbPut('background-image', null); dbPut('background-video', null); dbPut('wave-overlay', null);
       updateQuota(); updateExportButton(); toast('Sessão limpa.'); 
     };
     $('#learnMore').onclick = () => toast('O áudio é analisado localmente com a Web Audio API.');
