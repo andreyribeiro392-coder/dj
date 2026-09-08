@@ -45,6 +45,7 @@
     backgroundUrl: '',
     exportHistory: (() => { try { return JSON.parse(localStorage.getItem('aurora-export-history') || '[]'); } catch { return []; } })(),
     savedPresets: (() => { try { return JSON.parse(localStorage.getItem('aurora-presets') || '[]'); } catch { return []; } })(),
+    library: (() => { try { return JSON.parse(localStorage.getItem('aurora-library') || '[]'); } catch { return []; } })(),
     seenFileKeys: (() => { try { return JSON.parse(localStorage.getItem('aurora-seen-files') || '[]'); } catch { return []; } })(),
     lastExportUrl: '',
     lastExportBlob: null,
@@ -68,11 +69,15 @@
     bgContrast: Number(localStorage.getItem('aurora-bg-contrast') || 100),
     bgBlur: Number(localStorage.getItem('aurora-bg-blur') || 0),
     visualLayer: localStorage.getItem('aurora-visual-layer') || 'front',
+    bgRotation: Number(localStorage.getItem('aurora-bg-rotation') || 3),
+    waveStyle: localStorage.getItem('aurora-wave-style') || 'line',
+    waveThickness: Number(localStorage.getItem('aurora-wave-thickness') || 100) / 100,
     exportName: localStorage.getItem('aurora-export-name') || '',
     currentRecorder: null,
     exportCancelled: false,
     lastFrameTime: 0
   };
+  state.performanceMode = localStorage.getItem('aurora-performance-mode') || 'balanced';
   // DEFAULT_ART_DATA is declared immediately below; defer the image creation
   // until this script has finished evaluating so the const is initialized.
   queueMicrotask(() => {
@@ -119,6 +124,7 @@
     localStorage.setItem(storage.exportHistory, JSON.stringify(state.exportHistory));
     localStorage.setItem('aurora-presets', JSON.stringify(state.savedPresets));
     localStorage.setItem('aurora-seen-files', JSON.stringify(state.seenFileKeys.slice(-40)));
+    localStorage.setItem('aurora-library', JSON.stringify(state.library.slice(0, 24)));
   }
   function currentPresetSnapshot(name) {
     return {
@@ -135,6 +141,8 @@
       orbitalLayers: state.orbitalLayers,
       orbitalThickness: state.orbitalThickness,
       orbitalOverlayOpacity: state.orbitalOverlayOpacity,
+      waveStyle: state.waveStyle,
+      waveThickness: state.waveThickness,
       barCount: state.barCount,
       visualIntensity: state.visualIntensity,
       visualRotation: state.visualRotation,
@@ -159,6 +167,7 @@
       bgBrightness: state.bgBrightness,
       bgContrast: state.bgContrast,
       bgBlur: state.bgBlur,
+      bgRotation: state.bgRotation,
       visualLayer: state.visualLayer
     };
   }
@@ -175,6 +184,9 @@
       const input = $('#orbitalOverlayOpacity');
       if (input) { input.value = Math.round(Number(values.orbitalOverlayOpacity) * 100); setOrbitalOverlaySetting(input.value); }
     }
+    [['waveStyle', values.waveStyle || 'line'], ['waveThickness', Math.round((values.waveThickness || 1) * 100)]].forEach(([id, value]) => {
+      const input = $('#' + id); if (input && value !== undefined) { input.value = value; setWaveSetting(id, value); }
+    });
     if (values.visual) {
       state.visual = values.visual;
       document.querySelectorAll('[data-visual]').forEach(x => x.classList.toggle('active', x.dataset.visual === state.visual));
@@ -190,13 +202,13 @@
     });
     if (values.orientation) { state.orientation = values.orientation; $('#orientationSelect').value = values.orientation; $('#canvasWrap')?.classList.toggle('landscape', state.orientation === 'landscape'); }
     if (values.exportFormat) { state.exportFormat = values.exportFormat; $('#exportFormat').value = values.exportFormat; updateExportButton(); }
-    [['backgroundFit', values.backgroundFit], ['bgOpacity', Math.round((values.bgOpacity ?? 1) * 100)], ['bgZoom', Math.round((values.bgZoom ?? 1) * 100)], ['bgX', values.bgX], ['bgY', values.bgY], ['bgBrightness', values.bgBrightness], ['bgContrast', values.bgContrast], ['bgBlur', values.bgBlur], ['visualLayer', values.visualLayer]].forEach(([id, value]) => { const input = $('#' + id); if (input && value !== undefined) { input.value = value; setBackgroundSetting(id, value); } });
+    [['backgroundFit', values.backgroundFit], ['bgOpacity', Math.round((values.bgOpacity ?? 1) * 100)], ['bgZoom', Math.round((values.bgZoom ?? 1) * 100)], ['bgX', values.bgX], ['bgY', values.bgY], ['bgBrightness', values.bgBrightness], ['bgContrast', values.bgContrast], ['bgBlur', values.bgBlur], ['bgRotation', values.bgRotation], ['visualLayer', values.visualLayer]].forEach(([id, value]) => { const input = $('#' + id); if (input && value !== undefined) { input.value = value; setBackgroundSetting(id, value); } });
   }
   const dbPromise = (() => {
     if (!window.indexedDB) return Promise.resolve(null);
     return new Promise(resolve => {
-      const request = indexedDB.open('aurora-dj-workspace', 1);
-      request.onupgradeneeded = () => request.result.createObjectStore('workspace');
+      const request = indexedDB.open('aurora-dj-workspace', 2);
+      request.onupgradeneeded = () => { if (!request.result.objectStoreNames.contains('workspace')) request.result.createObjectStore('workspace'); };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => resolve(null);
     });
@@ -218,26 +230,72 @@
       request.onerror = () => resolve(null);
     }));
   }
+  function dbDelete(key) {
+    return dbPromise.then(db => new Promise(resolve => {
+      if (!db) return resolve(false);
+      const tx = db.transaction('workspace', 'readwrite');
+      tx.objectStore('workspace').delete(key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    }));
+  }
+  function dbClear() {
+    return dbPromise.then(db => new Promise(resolve => {
+      if (!db) return resolve(false);
+      const tx = db.transaction('workspace', 'readwrite');
+      tx.objectStore('workspace').clear();
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    }));
+  }
+  function libraryIdFor(key) { return 'library:' + encodeURIComponent(key); }
+  function rememberLibraryFile(file, key) {
+    if (!file || !key) return;
+    const id = libraryIdFor(key);
+    const existing = state.library.find(item => item.id === id);
+    const item = {id, key, name:file.name || 'Faixa sem nome', size:file.size || 0, type:file.type || '', addedAt:existing?.addedAt || Date.now()};
+    const next = [item].concat(state.library.filter(entry => entry.id !== id));
+    const discarded = next.slice(24);
+    state.library = next.slice(0, 24);
+    discarded.forEach(entry => dbDelete(entry.id));
+    saveCounters();
+    dbPut(id, {blob:file, name:item.name, size:item.size, type:item.type, key});
+  }
+  async function openLibraryFile(id) {
+    const record = await dbGet(id);
+    if (!record?.blob) { toast('Esse arquivo não está mais disponível neste dispositivo.'); return; }
+    const file = typeof File === 'function' ? new File([record.blob], record.name || 'audio', {type:record.type || 'audio/mpeg'}) : record.blob;
+    loadFile(file, {restored:true, fromLibrary:true});
+    showSection('studio');
+  }
+  async function removeLibraryFile(id) {
+    const item = state.library.find(entry => entry.id === id);
+    state.library = state.library.filter(entry => entry.id !== id);
+    await dbDelete(id);
+    if (item?.key && item.key === state.fileKey) $('#clearSession')?.click();
+    saveCounters();
+  }
   function persistSession() {
     if (!state.fileBlob) return Promise.resolve(false);
     return dbPut('session', {audio: state.fileBlob, name: state.fileName, type: state.fileBlob.type, key: state.fileKey});
   }
   async function restoreSession() {
     const record = await dbGet('session');
-    if (!record || !record.audio || !record.name) return;
     try {
-      const file = typeof File === 'function' ? new File([record.audio], record.name, {type: record.type || 'audio/mpeg'}) : record.audio;
-      if (!file.name) file.name = record.name;
-      loadFile(file, {restored: true});
       const imageRecord = await dbGet('background-image');
       const videoRecord = await dbGet('background-video');
       const centerRecord = await dbGet('center-art');
       const overlayRecord = await dbGet('wave-overlay');
+      if (record?.audio && record?.name) {
+        const file = typeof File === 'function' ? new File([record.audio], record.name, {type: record.type || 'audio/mpeg'}) : record.audio;
+        if (!file.name) file.name = record.name;
+        loadFile(file, {restored: true});
+      }
       if (imageRecord?.blob) { const imageFile = typeof File === 'function' ? new File([imageRecord.blob], imageRecord.name || 'fundo.png', {type:imageRecord.type || imageRecord.blob.type}) : imageRecord.blob; setBackgroundImage(imageFile); }
       else if (videoRecord?.blob) { const videoFile = typeof File === 'function' ? new File([videoRecord.blob], videoRecord.name || 'fundo.mp4', {type:videoRecord.type || videoRecord.blob.type}) : videoRecord.blob; setBackgroundVideo(videoFile); }
       if (centerRecord?.blob) { const centerFile = typeof File === 'function' ? new File([centerRecord.blob], centerRecord.name || 'logo.png', {type:centerRecord.type || centerRecord.blob.type}) : centerRecord.blob; setCenterImage(centerFile, {silent:true}); }
       if (overlayRecord?.blob) { const overlayFile = typeof File === 'function' ? new File([overlayRecord.blob], overlayRecord.name || 'ondas.png', {type:overlayRecord.type || overlayRecord.blob.type}) : overlayRecord.blob; setOrbitalOverlay(overlayFile, {silent:true, restored:true}); }
-      toast('Sessão restaurada neste dispositivo.');
+      if (record?.audio || imageRecord?.blob || videoRecord?.blob || centerRecord?.blob || overlayRecord?.blob) toast('Sessão restaurada neste dispositivo.');
     } catch (_) {}
   }
   function setBusy(node, busy, label) {
@@ -250,6 +308,9 @@
     const button = $('#exportBtn');
     if (!button) return;
     button.textContent = state.exportFormat === 'mp3' ? '♪ Exportar MP3' : state.exportFormat === 'mp4' ? '▣ Exportar MP4' : '↗ Exportar WebM';
+  }
+  function browserSupportsMp4Export() {
+    return !!window.MediaRecorder && ['video/mp4;codecs="avc1.42E01E,mp4a.40.2"', 'video/mp4'].some(type => MediaRecorder.isTypeSupported(type));
   }
   function updateQuota() {
     const quota = $('#quotaText');
@@ -284,7 +345,9 @@
     state.analyser.connect(state.recordDestination);
   }
   function loadFile(file, options = {}) {
-    if (!file || !String(file.type || '').startsWith('audio/')) { toast('Escolha um áudio válido: MP3, WAV ou OGG.'); return; }
+    const extension = String(file?.name || '').split('.').pop().toLowerCase();
+    const accepted = ['mp3','wav','ogg','m4a','aac','webm'];
+    if (!file || (!String(file.type || '').startsWith('audio/') && !accepted.includes(extension))) { toast('Escolha um áudio válido: MP3, WAV, OGG, M4A, AAC ou WebM.'); return; }
     if (file.size > 100 * 1024 * 1024) { toast('Esse arquivo ultrapassa o limite de 100 MB.'); return; }
     const key = [file.name, file.size, file.lastModified || 0].join('|');
     if (key === state.fileKey && state.fileName) { toast('Essa faixa já está carregada.'); return; }
@@ -294,6 +357,7 @@
     if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
     state.objectUrl = URL.createObjectURL(file);
     state.fileBlob = file; state.fileKey = key; state.fileName = file.name || 'audio';
+    rememberLibraryFile(file, key);
     if (!options.restored && !state.isAdmin && !alreadyCounted) { state.uploads += 1; state.seenFileKeys.push(key); saveCounters(); updateQuota(); }
     audio.src = state.objectUrl; audio.load();
     try { setupAudioGraph(); } catch (_) {}
@@ -303,6 +367,10 @@
     $('#nowMeta').textContent = formatSize(file.size) + ' · pronto para mixar';
     $('#visualStatus').textContent = 'Faixa carregada';
     audio.addEventListener('loadedmetadata', () => setBusy($('#dropzone'), false), {once:true});
+    audio.addEventListener('error', () => {
+      setBusy($('#dropzone'), false);
+      toast('Este áudio não pôde ser decodificado neste navegador. Tente MP3, WAV ou OGG.');
+    }, {once:true});
     persistSession();
     updateExportButton(); updateQuota();
     toast(options.restored ? 'Sessão recuperada.' : 'Áudio carregado. Pressione play para iniciar.');
@@ -376,6 +444,13 @@
     localStorage.setItem('aurora-orbital-overlay-opacity', String(n));
     const input = $('#orbitalOverlayOpacity'); if (input && input.value !== String(n)) input.value = String(n);
     const output = $('#orbitalOverlayOpacityValue'); if (output) output.textContent = n + '%';
+  }
+  function setWaveSetting(id, value) {
+    if (id === 'waveStyle') state.waveStyle = value;
+    if (id === 'waveThickness') state.waveThickness = Math.max(.4, Math.min(2.2, Number(value) / 100));
+    localStorage.setItem('aurora-' + id.replace(/[A-Z]/g, match => '-' + match.toLowerCase()), String(value));
+    const output = $('#' + id + 'Value');
+    if (output && id === 'waveThickness') output.textContent = Math.round(state.waveThickness * 100) + '%';
   }
   function setCenterImage(file, options = {}) {
     if (!file || !String(file.type || '').startsWith('image/')) { if (!options.silent) toast('Escolha uma imagem PNG, JPG ou WEBP para o núcleo.'); return; }
@@ -469,16 +544,18 @@
     if (id === 'bgBrightness') state.bgBrightness = n;
     if (id === 'bgContrast') state.bgContrast = n;
     if (id === 'bgBlur') state.bgBlur = n;
+    if (id === 'bgRotation') state.bgRotation = n;
     if (id === 'visualLayer') state.visualLayer = value;
     localStorage.setItem('aurora-' + id.replace(/[A-Z]/g, m => '-' + m.toLowerCase()), String(value));
-    const labels = {bgOpacity:Math.round(state.bgOpacity*100)+'%', bgZoom:Math.round(state.bgZoom*100)+'%', bgX:n+'%', bgY:n+'%', bgBrightness:n+'%', bgContrast:n+'%', bgBlur:n+'px'};
+    const labels = {bgOpacity:Math.round(state.bgOpacity*100)+'%', bgZoom:Math.round(state.bgZoom*100)+'%', bgX:n+'%', bgY:n+'%', bgBrightness:n+'%', bgContrast:n+'%', bgBlur:n+'px',bgRotation:n+'°/min'};
     const node = $('#' + id + 'Value'); if (node && labels[id] !== undefined) node.textContent = labels[id];
   }
   function resetControls() {
     [['bass',0],['treble',0],['sensitivity',70],['smooth',70],['noiseReduction',0],['eq60',0],['eq170',0],['eq310',0],['eq600',0],['eq1200',0],['eq3000',0],['eq8000',0],['eq14000',0]].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setControl(id, value); } });
     [['barCount',96],['visualIntensity',100],['visualRotation',0],['visualOpacity',100],['bassResponse',100],['pulseAmount',100],['glowAmount',80],['barPlacement','outside']].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setVisualSetting(id, value); } });
     [['orbitalShape','ripple'],['orbitalLayers',3],['orbitalThickness',100]].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setOrbitalSetting(id, value); } });
-    [['bgOpacity',100],['bgZoom',100],['bgX',0],['bgY',0],['bgBrightness',100],['bgContrast',100],['bgBlur',0],['backgroundFit','contain'],['visualLayer','front']].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setBackgroundSetting(id, value); } });
+    [['bgOpacity',100],['bgZoom',100],['bgX',0],['bgY',0],['bgBrightness',100],['bgContrast',100],['bgBlur',0],['bgRotation',3],['backgroundFit','contain'],['visualLayer','front']].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setBackgroundSetting(id, value); } });
+    [['waveStyle','line'],['waveThickness',100]].forEach(([id,value]) => { const input = $('#' + id); if (input) { input.value = value; setWaveSetting(id, value); } });
     toast('Controles restaurados.');
   }
   function resizeCanvas() {
@@ -504,7 +581,12 @@
     const dx = (w - dw) / 2 + state.bgX / 100 * w * .45;
     const dy = (h - dh) / 2 + state.bgY / 100 * h * .45;
     ctx2d.save();
-    if (media === state.defaultArtwork) { ctx2d.translate(w / 2, h / 2); ctx2d.rotate(performance.now() / 60000); ctx2d.translate(-w / 2, -h / 2); }
+    const rotateRate = Number(state.bgRotation || 0);
+    if (rotateRate) {
+      ctx2d.translate(w / 2, h / 2);
+      ctx2d.rotate(performance.now() / 60000 * rotateRate * Math.PI / 180);
+      ctx2d.translate(-w / 2, -h / 2);
+    }
     ctx2d.globalAlpha = state.bgOpacity;
     ctx2d.filter = 'brightness(' + state.bgBrightness + '%) contrast(' + state.bgContrast + '%) blur(' + state.bgBlur + 'px)';
     ctx2d.fillStyle = '#03070b';
@@ -527,37 +609,73 @@
     const rect = canvas.getBoundingClientRect();
     const w = rect.width, h = rect.height;
     ctx2d.clearRect(0, 0, w, h);
-    const hasBackground = drawBackground(w, h);
     const palette = currentPalette();
-    if (!hasBackground) {
+    const hasCustomBackground = !!state.backgroundVideo || (!!state.backgroundImage && state.backgroundImage !== state.defaultArtwork);
+    const paintStage = () => {
       const gradient = ctx2d.createRadialGradient(w * (.45 + (state.pointer.x - .5) * .12), h * (.46 + (state.pointer.y - .5) * .12), 8, w * .5, h * .5, Math.max(w, h) * .66);
       gradient.addColorStop(0, palette.primary + '44'); gradient.addColorStop(.45, '#0b202cee'); gradient.addColorStop(1, '#071015f5');
       ctx2d.fillStyle = gradient; ctx2d.fillRect(0, 0, w, h);
-    } else {
-      // Keep the selected image/video bright and readable; only add a very light contrast veil.
-      ctx2d.fillStyle = '#02060a18';
-      ctx2d.fillRect(0, 0, w, h);
-    }
+    };
     const data = state.analyser ? new Uint8Array(state.analyser.frequencyBinCount) : new Uint8Array(128);
     if (state.analyser) state.analyser.getByteFrequencyData(data);
     const sensitivity = Number($('#sensitivity').value || 70) / 70;
     const average = data.reduce((a,b) => a + b, 0) / Math.max(1, data.length);
-    ctx2d.save();
-    ctx2d.globalAlpha = state.visualOpacity * (state.visualLayer === 'back' ? .42 : 1);
-    if (state.visual === 'wave') {
+    const paintVisual = () => {
+      if (state.visual === 'wave') {
       const timeData = state.analyser ? new Uint8Array(state.analyser.fftSize) : data;
       if (state.analyser) state.analyser.getByteTimeDomainData(timeData);
       drawWave(timeData, w, h, sensitivity);
-    } else if (state.visual === 'spectrum2d') drawSpectrum2D(data, w, h, sensitivity);
-    else if (state.visual === 'orbital') drawOrbital(data, w, h, sensitivity);
-    else if (state.visual === 'orbit' || state.visual === 'particles') drawOrbit(data, w, h, sensitivity, state.visual === 'particles');
-    else if (state.visual === 'disc') drawDisc(data, w, h, sensitivity);
-    else if (state.visual === 'triangles') drawTriangles(data, w, h, sensitivity);
-    else if (state.visual === 'mirror') drawMirror(data, w, h, sensitivity);
-    else drawBars(data, w, h, sensitivity);
-    ctx2d.restore();
+      } else if (state.visual === 'spectrum2d') drawSpectrum2D(data, w, h, sensitivity);
+      else if (state.visual === 'orbital') drawOrbital(data, w, h, sensitivity);
+      else if (state.visual === 'orbit' || state.visual === 'particles') drawOrbit(data, w, h, sensitivity, state.visual === 'particles');
+      else if (state.visual === 'disc') drawDisc(data, w, h, sensitivity);
+      else if (state.visual === 'triangles') drawTriangles(data, w, h, sensitivity);
+      else if (state.visual === 'mirror') drawMirror(data, w, h, sensitivity);
+      else drawBars(data, w, h, sensitivity);
+      if (state.visual !== 'orbital') drawUniversalCore(data, w, h, sensitivity);
+    };
+    if (state.visualLayer === 'back' && hasCustomBackground) {
+      paintStage();
+      ctx2d.save(); ctx2d.globalAlpha = state.visualOpacity; paintVisual(); ctx2d.restore();
+      drawBackground(w, h);
+    } else {
+      const hasBackground = drawBackground(w, h);
+      if (!hasBackground) paintStage();
+      else { ctx2d.fillStyle = '#02060a18'; ctx2d.fillRect(0, 0, w, h); }
+      ctx2d.save(); ctx2d.globalAlpha = state.visualOpacity; paintVisual(); ctx2d.restore();
+    }
     if (state.fileName && !audio.paused) $('#visualStatus').textContent = 'Reproduzindo · ' + Math.round(average) + ' signal';
     requestAnimationFrame(drawVisualizer);
+  }
+  function drawUniversalCore(data, w, h, sensitivity) {
+    const palette = currentPalette();
+    const cx = w * .5, cy = h * .5;
+    const radius = Math.min(w, h) * .145;
+    const bassBins = Math.max(4, Math.floor(data.length * .08));
+    const bass = data.slice(0, bassBins).reduce((sum, value) => sum + value, 0) / (bassBins * 255);
+    const pulse = 1 + bass * .22 * (state.pulseAmount || 1);
+    ctx2d.save();
+    ctx2d.globalCompositeOperation = 'lighter';
+    if (state.orbitalOverlay?.complete && state.orbitalOverlay.naturalWidth) {
+      const image = state.orbitalOverlay;
+      const maxSize = radius * 3.25 * pulse;
+      const ratio = image.naturalWidth / image.naturalHeight;
+      const dw = ratio >= 1 ? maxSize : maxSize * ratio;
+      const dh = ratio >= 1 ? maxSize / ratio : maxSize;
+      ctx2d.save(); ctx2d.translate(cx, cy);
+      ctx2d.rotate(performance.now() / 22000 + (state.visualRotation || 0) * Math.PI / 180);
+      ctx2d.globalAlpha = Math.max(.08, Math.min(1, state.orbitalOverlayOpacity || 1)) * (.55 + bass * .45);
+      ctx2d.drawImage(image, -dw / 2, -dh / 2, dw, dh);
+      ctx2d.restore();
+    }
+    const halo = ctx2d.createRadialGradient(cx, cy, radius * .2, cx, cy, radius * 1.8 * pulse);
+    halo.addColorStop(0, palette.primary + '3d'); halo.addColorStop(.72, palette.secondary + '12'); halo.addColorStop(1, 'transparent');
+    ctx2d.globalAlpha = 1; ctx2d.fillStyle = halo; ctx2d.beginPath(); ctx2d.arc(cx, cy, radius * 1.8 * pulse, 0, Math.PI * 2); ctx2d.fill();
+    ctx2d.globalCompositeOperation = 'source-over';
+    ctx2d.fillStyle = '#05080dcc'; ctx2d.beginPath(); ctx2d.arc(cx, cy, radius, 0, Math.PI * 2); ctx2d.fill();
+    renderCenterArtwork(ctx2d, cx, cy, radius);
+    ctx2d.strokeStyle = palette.highlight + 'b8'; ctx2d.lineWidth = 1.5; ctx2d.beginPath(); ctx2d.arc(cx, cy, radius + 2, 0, Math.PI * 2); ctx2d.stroke();
+    ctx2d.restore();
   }
   function drawBars(data, w, h, sensitivity) {
     const palette = currentPalette();
@@ -565,7 +683,8 @@
     const cy = h * (.5 + (state.pointer.y - .5) * .035);
     const radius = Math.min(w, h) * .19;
     const outer = Math.min(w, h) * .47;
-    const count = Math.max(32, Math.min(128, state.barCount || 96));
+    const countCap = state.performanceMode === 'eco' ? 64 : state.performanceMode === 'balanced' ? 96 : 128;
+    const count = Math.max(32, Math.min(countCap, state.barCount || 96));
     const step = Math.PI * 2 / count;
     const barWidth = Math.max(2, Math.min(8, radius * step * .68));
     const rotation = (state.visualRotation || 0) * Math.PI / 180 - Math.PI / 2;
@@ -608,7 +727,8 @@
   }
   function drawSpectrum2D(data, w, h, sensitivity) {
     const palette = currentPalette();
-    const count = Math.max(32, Math.min(128, state.barCount || 96));
+    const countCap = state.performanceMode === 'eco' ? 64 : state.performanceMode === 'balanced' ? 96 : 128;
+    const count = Math.max(32, Math.min(countCap, state.barCount || 96));
     const gap = Math.max(2, w / count);
     const barWidth = Math.max(2, gap * .62);
     const base = h * .82;
@@ -655,9 +775,11 @@
     const pulse = 1 + state.orbitalBass * 0.62 * (state.pulseAmount || 1);
     const spin = performance.now() / 9000 + (state.visualRotation || 0) * Math.PI / 180;
     const glow = Math.max(.25, Math.min(1, state.glowAmount || .8));
-    const points = Math.max(96, Math.min(180, state.barCount + 48));
+    const pointsCap = state.performanceMode === 'eco' ? 96 : state.performanceMode === 'balanced' ? 132 : 180;
+    const points = Math.max(72, Math.min(pointsCap, state.barCount + 48));
     const shape = state.orbitalShape || 'ripple';
-    const layerCount = Math.max(1, Math.min(6, state.orbitalLayers || 3));
+    const layerCap = state.performanceMode === 'eco' ? 3 : 6;
+    const layerCount = Math.max(1, Math.min(layerCap, state.orbitalLayers || 3));
     const thickness = Math.max(.4, Math.min(1.8, state.orbitalThickness || 1));
     const drawRing = (ringIndex, radius, amplitude, alpha) => {
       ctx2d.beginPath();
@@ -748,11 +870,34 @@
   function drawMirror(data,w,h,sensitivity){ const palette=currentPalette(), mid=h*.5, count=Math.min(64,Math.floor(state.barCount/2)), gap=w/(count*2+1), t=performance.now()/1800; ctx2d.save();ctx2d.globalCompositeOperation='lighter'; for(let i=0;i<count;i++){ const v=Math.pow((data[Math.floor(i*data.length/count)]||0)/255,.65), len=12+v*h*.38*sensitivity, x=gap*(i+1), hue=(i/count*260+t)%360, color=state.style==='mono'?palette.primary:`hsl(${hue} 90% 64%)`;ctx2d.fillStyle=color;ctx2d.globalAlpha=.35+v*.65;ctx2d.fillRect(w*.5+x,mid-len,Math.max(2,gap*.55),len);ctx2d.fillRect(w*.5-x-gap*.55,mid-len,Math.max(2,gap*.55),len);ctx2d.fillRect(w*.5+x,mid,Math.max(2,gap*.55),len);ctx2d.fillRect(w*.5-x-gap*.55,mid,Math.max(2,gap*.55),len);}ctx2d.restore(); }
   function drawWave(data, w, h, sensitivity) {
     const palette = currentPalette();
-    ctx2d.lineWidth = 2; ctx2d.strokeStyle = palette.primary; ctx2d.shadowBlur = 18; ctx2d.shadowColor = palette.primary;
-    ctx2d.beginPath();
-    for (let i = 0; i < 128; i++) { const x = i / 127 * w; const v = ((data[i] || 0) / 255 - .5) * h * .55 * sensitivity; const y = h * .5 + v; if (i === 0) ctx2d.moveTo(x,y); else ctx2d.lineTo(x,y); }
-    ctx2d.stroke(); ctx2d.shadowBlur = 0;
-    ctx2d.strokeStyle = palette.secondary + '55'; ctx2d.lineWidth = 1; ctx2d.beginPath(); ctx2d.moveTo(0,h*.5); ctx2d.lineTo(w,h*.5); ctx2d.stroke();
+    const points = Math.min(256, data.length || 128);
+    const mid = h * .5;
+    const strength = h * .48 * sensitivity;
+    const thickness = Math.max(1, 2.2 * (state.waveThickness || 1));
+    const style = state.waveStyle || 'line';
+    const path = (flip = 1, offset = 0) => {
+      ctx2d.beginPath();
+      for (let i = 0; i < points; i++) {
+        const x = i / (points - 1) * w;
+        const v = ((data[i] || 128) / 255 - .5) * strength * flip;
+        const y = mid + v + offset;
+        if (!i) ctx2d.moveTo(x, y); else ctx2d.lineTo(x, y);
+      }
+    };
+    ctx2d.save(); ctx2d.lineJoin = 'round'; ctx2d.lineCap = 'round';
+    ctx2d.shadowBlur = 16 * (state.glowAmount || .8); ctx2d.shadowColor = palette.primary;
+    if (style === 'filled' || style === 'ribbon') {
+      path(1); ctx2d.lineTo(w, mid); ctx2d.lineTo(0, mid); ctx2d.closePath();
+      const fill = ctx2d.createLinearGradient(0, mid - strength, 0, mid + strength);
+      fill.addColorStop(0, palette.primary + (style === 'ribbon' ? 'a0' : '70')); fill.addColorStop(1, palette.secondary + '08');
+      ctx2d.fillStyle = fill; ctx2d.fill();
+    }
+    path(1); ctx2d.lineWidth = thickness; ctx2d.strokeStyle = palette.primary; ctx2d.stroke();
+    if (style === 'dual' || style === 'mirror' || style === 'ribbon') {
+      path(style === 'mirror' ? -1 : 1, style === 'dual' ? thickness * 3 : 0);
+      ctx2d.lineWidth = Math.max(1, thickness * .58); ctx2d.strokeStyle = palette.secondary; ctx2d.globalAlpha = .75; ctx2d.stroke(); ctx2d.globalAlpha = 1;
+    }
+    ctx2d.shadowBlur = 0; ctx2d.strokeStyle = palette.secondary + '55'; ctx2d.lineWidth = 1; ctx2d.beginPath(); ctx2d.moveTo(0,mid); ctx2d.lineTo(w,mid); ctx2d.stroke(); ctx2d.restore();
   }
   function drawOrbit(data, w, h, sensitivity, particlesOnly = false) {
     const palette = currentPalette();
@@ -776,6 +921,17 @@
     const link = document.createElement('a');
     link.href = url; link.download = name; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function prepareExport(blob, filename, type) {
+    if (state.lastExportUrl) URL.revokeObjectURL(state.lastExportUrl);
+    state.lastExportUrl = URL.createObjectURL(blob);
+    state.lastExportBlob = blob;
+    state.lastExportFilename = filename;
+    const preview = $('#exportPreview');
+    if (preview) { preview.src = state.lastExportUrl; preview.hidden = false; preview.load(); }
+    const download = $('#downloadExportBtn');
+    if (download) download.hidden = false;
+    updateExportMeta(type, blob);
   }
   async function checkAdminAccess() {
     try {
@@ -804,14 +960,16 @@
     });
     node.querySelectorAll('[data-history-delete]').forEach(button => button.onclick = () => {
       const reversedIndex = Number(button.dataset.historyDelete);
-      state.exportHistory.splice(state.exportHistory.length - 1 - reversedIndex, 1);
+      const [removed] = state.exportHistory.splice(state.exportHistory.length - 1 - reversedIndex, 1);
+      if (removed?.id) dbDelete('export:' + removed.id);
       saveCounters(); renderExportHistory(); toast('Exportação removida do histórico.');
     });
   }
   function rememberExport(type) {
     const id = 'export-' + Date.now();
     state.exportHistory.push({id, name: state.fileName || 'visualização', filename: baseExportName() + (type === 'mp3' ? '.mp3' : '-visual.' + type), type, time: Date.now(), url: ''});
-    state.exportHistory = state.exportHistory.slice(-8);
+    const removed = state.exportHistory.length > 8 ? state.exportHistory.splice(0, state.exportHistory.length - 8) : [];
+    removed.forEach(item => item?.id && dbDelete('export:' + item.id));
     if (state.lastExportBlob) dbPut('export:' + id, {blob: state.lastExportBlob, filename: baseExportName(), type});
     saveCounters();
     renderExportHistory();
@@ -853,11 +1011,7 @@
     }
     const flushed = encoder.flush(); if (flushed.length) chunks.push(new Int8Array(flushed));
     const blob = new Blob(chunks, {type:'audio/mpeg'});
-    const filename = baseExportName() + '.mp3';
-    if (state.lastExportUrl) URL.revokeObjectURL(state.lastExportUrl);
-    state.lastExportUrl = URL.createObjectURL(blob); state.lastExportBlob = blob;
-    const preview = $('#exportPreview'); if (preview) { preview.src = state.lastExportUrl; preview.hidden = false; preview.load(); }
-    downloadBlob(blob, filename); updateExportMeta('MP3', blob); setExportProgress(100, 'Concluído');
+    prepareExport(blob, baseExportName() + '.mp3', 'MP3'); setExportProgress(100, 'Prévia pronta para baixar');
   }
   function exportVideo(format) {
     return new Promise((resolve, reject) => {
@@ -893,16 +1047,12 @@
         clearInterval(timer); cancelAnimationFrame(frameHandle); state.currentRecorder = null;
         if (settled) return;
         if (state.exportCancelled) { settled = true; reject(new Error('cancelled')); return; }
-        settled = true; const extension = format === 'mp4' ? 'mp4' : 'webm';
+        settled = true; const extension = mime.includes('mp4') ? 'mp4' : 'webm';
         const blob = new Blob(chunks, {type:mime});
-        downloadBlob(blob, baseExportName() + '-visual.' + extension);
-        if (state.lastExportUrl) URL.revokeObjectURL(state.lastExportUrl);
-        state.lastExportUrl = URL.createObjectURL(blob);
-        state.lastExportBlob = blob;
-        const preview = $('#exportPreview'); if (preview) { preview.src = state.lastExportUrl; preview.hidden = false; preview.load(); }
-        updateExportMeta(format.toUpperCase(), blob); setExportProgress(100, 'Concluído'); resolve();
+        prepareExport(blob, baseExportName() + '-visual.' + extension, extension.toUpperCase());
+        setExportProgress(100, 'Prévia pronta para baixar'); resolve();
       };
-      if (state.backgroundVideo) state.backgroundVideo.play().catch(() => {});
+      if (state.backgroundVideo) { state.backgroundVideo.currentTime = 0; state.backgroundVideo.play().catch(() => {}); }
       audio.currentTime = 0; recorder.start(200); paintExportFrame();
       audio.play().then(() => audio.addEventListener('ended', finish, {once:true})).catch(() => { finish(); if (!settled) { settled = true; reject(new Error('audio-start')); } });
     });
@@ -986,7 +1136,8 @@
   function updateExportMeta(type, blob) {
     const node = $('#exportMeta'); if (!node || !blob) return;
     const orientation = state.orientation === 'portrait' ? '1080×1920' : '1920×1080';
-    node.textContent = type === 'MP3' ? 'MP3 · ' + formatSize(blob.size) : type + ' · ' + orientation + ' · ' + formatSize(blob.size);
+    const duration = formatTime(audio.duration);
+    node.textContent = type === 'MP3' ? 'MP3 · ' + duration + ' · ' + formatSize(blob.size) : type + ' · ' + orientation + ' · ' + duration + ' · ' + formatSize(blob.size);
   }
   function cancelExport() {
     state.exportCancelled = true;
@@ -1008,7 +1159,8 @@
     const view = document.createElement('section');
     view.className = 'directory-view';
     if (section === 'library') {
-      view.innerHTML = '<div class="directory-header"><div><p class="eyebrow">WORKSPACE / BIBLIOTECA</p><h1>Biblioteca</h1><p>Encontre suas faixas salvas neste dispositivo e reabra uma sessão.</p></div><button class="outline-btn" data-action="open-studio" type="button">＋ Importar faixa</button></div><div class="library-toolbar"><input data-library-search type="search" placeholder="Buscar faixa pelo nome…"><span class="library-count">' + (state.fileName ? '1 faixa disponível' : 'Nenhuma faixa') + '</span></div><div class="directory-cards library-list">' + (state.fileName ? '<article class="directory-card library-card"><span class="directory-icon">♫</span><h3>' + escapeHtml(state.fileName) + '</h3><p>' + formatSize(state.fileBlob?.size || 0) + ' · armazenada localmente</p><div class="card-actions"><button class="outline-btn" data-action="open-studio" type="button">Abrir no Studio</button><button class="danger-btn" data-action="clear-session" type="button">Excluir</button></div></article>' : '<div class="directory-empty">Nenhuma faixa salva ainda.<br><small>Importe um áudio no Studio para começar.</small></div>') + '</div>';
+      const files = state.library.slice().sort((a,b) => b.addedAt - a.addedAt);
+      view.innerHTML = '<div class="directory-header"><div><p class="eyebrow">WORKSPACE / BIBLIOTECA</p><h1>Biblioteca</h1><p>Suas faixas ficam neste dispositivo. Reabra, procure ou exclua quando quiser.</p></div><button class="outline-btn" data-action="open-studio" type="button">＋ Importar faixa</button></div><div class="library-toolbar"><input data-library-search type="search" placeholder="Buscar faixa pelo nome…"><span class="library-count">' + files.length + (files.length === 1 ? ' faixa salva' : ' faixas salvas') + '</span></div><div class="directory-cards library-list">' + (files.length ? files.map(item => '<article class="directory-card library-card"><span class="directory-icon">♫</span><h3>' + escapeHtml(item.name) + '</h3><p>' + formatSize(item.size || 0) + ' · ' + new Date(item.addedAt).toLocaleDateString('pt-BR') + '</p><div class="card-actions"><button class="outline-btn" data-action="open-library-file" data-id="' + escapeHtml(item.id) + '" type="button">Abrir no Studio</button><button class="danger-btn" data-action="delete-library-file" data-id="' + escapeHtml(item.id) + '" type="button">Excluir</button></div></article>').join('') : '<div class="directory-empty">Nenhuma faixa salva ainda.<br><small>Importe um áudio no Studio para começar.</small></div>') + '</div>';
       return view;
     }
     if (section === 'exports') {
@@ -1025,6 +1177,10 @@
       view.innerHTML = '<div class="directory-header"><div><p class="eyebrow">FERRAMENTAS / PRESETS</p><h1>Presets</h1><p>Guarde combinações de áudio e visual para reutilizar em poucos segundos.</p></div><div class="directory-actions"><button class="outline-btn" data-action="save-preset" type="button">＋ Salvar configuração atual</button><button class="ghost-btn" data-action="open-studio" type="button">← Studio</button></div></div><div class="directory-cards preset-list">' + builtIns.concat(saved).map(item => '<article class="directory-card"><span class="directory-icon">✦</span><h3>' + escapeHtml(item.name) + '</h3><p>' + escapeHtml(item.text) + '</p><div class="card-actions"><button class="outline-btn" data-action="' + (item.saved ? 'apply-saved-preset' : 'presets') + '" data-index="' + item.index + '" type="button">Aplicar preset</button>' + (item.saved ? '<button class="danger-btn" data-action="delete-preset" data-index="' + item.index + '" type="button">Excluir</button>' : '') + '</div></article>').join('') + '</div>';
       return view;
     }
+    if (section === 'settings') {
+      view.innerHTML = '<div class="directory-header"><div><p class="eyebrow">CONTA / CONFIGURAÇÕES</p><h1>Configurações</h1><p>Preferências locais do seu estúdio. Nenhum arquivo é enviado automaticamente.</p></div><button class="ghost-btn" data-action="open-studio" type="button">← Studio</button></div><div class="settings-stack"><article class="directory-card settings-card"><span class="directory-icon">◌</span><h3>Desempenho</h3><p>Reduza efeitos para preservar bateria e fluidez em celulares.</p><label class="field-label">Modo de renderização<select data-performance-mode><option value="quality">Qualidade máxima</option><option value="balanced">Equilibrado</option><option value="eco">Economia de bateria</option></select></label></article><article class="directory-card settings-card"><span class="directory-icon">⌘</span><h3>Atalhos</h3><p><b>Espaço</b> reproduz ou pausa. <b>Ctrl/Cmd + E</b> inicia a exportação.</p></article><article class="directory-card settings-card"><span class="directory-icon">◫</span><h3>Dados locais</h3><p>' + state.library.length + ' faixas, ' + state.exportHistory.length + ' exportações e ' + state.savedPresets.length + ' presets armazenados neste navegador.</p><button class="danger-btn" data-action="clear-workspace" type="button">Apagar dados locais</button></article></div>';
+      return view;
+    }
     view.innerHTML = '<div class="directory-header"><div><p class="eyebrow">' + data.eyebrow + '</p><h1>' + data.title + '</h1><p>' + data.text + '</p></div><button class="outline-btn" data-action="open-studio" type="button">← Voltar ao Studio</button></div><div class="directory-cards">' + data.cards.map((card, index) => '<article class="directory-card"><span class="directory-icon">' + card[2] + '</span><h3>' + card[0] + '</h3><p>' + card[1] + '</p><button class="outline-btn" data-action="' + section + '" data-index="' + index + '" type="button">' + (section === 'presets' ? 'Aplicar preset' : section === 'visualizers' ? 'Usar visual' : section === 'mixer' ? 'Abrir mixer' : 'Abrir no Studio') + '</button></article>').join('') + '</div>';
     return view;
   }
@@ -1033,6 +1189,15 @@
     const search = view.querySelector('[data-library-search]');
     if (search) search.oninput = () => view.querySelectorAll('.library-card').forEach(card => card.hidden = !card.textContent.toLowerCase().includes(search.value.toLowerCase()));
     view.querySelectorAll('[data-action="clear-session"]').forEach(button => button.onclick = () => { $('#clearSession').click(); showSection('library'); });
+    view.querySelectorAll('[data-action="open-library-file"]').forEach(button => button.onclick = () => openLibraryFile(button.dataset.id));
+    view.querySelectorAll('[data-action="delete-library-file"]').forEach(button => button.onclick = async () => { await removeLibraryFile(button.dataset.id); showSection('library'); toast('Faixa removida da biblioteca.'); });
+    const performance = view.querySelector('[data-performance-mode]');
+    if (performance) { performance.value = state.performanceMode; performance.onchange = () => { state.performanceMode = performance.value; localStorage.setItem('aurora-performance-mode', state.performanceMode); toast('Modo de desempenho atualizado.'); }; }
+    view.querySelectorAll('[data-action="clear-workspace"]').forEach(button => button.onclick = async () => {
+      if (!window.confirm('Apagar faixas, exportações, presets e artes deste navegador?')) return;
+      $('#clearSession')?.click(); state.library = []; state.exportHistory = []; state.savedPresets = []; state.seenFileKeys = []; state.uploads = 0; state.exports = 0;
+      await dbClear(); saveCounters(); renderExportHistory(); updateQuota(); showSection('settings'); toast('Dados locais apagados.');
+    });
     view.querySelectorAll('[data-action="presets"]').forEach(button => button.onclick = () => {
       const values = [
         {bass:5,treble:2,sensitivity:85,smooth:60,visual:'disc',style:'aurora'},
@@ -1062,7 +1227,8 @@
     view.querySelectorAll('[data-action="delete-export"]').forEach(button => button.onclick = () => {
       const reversedIndex = Number(button.dataset.index);
       const index = state.exportHistory.length - 1 - reversedIndex;
-      if (index >= 0) state.exportHistory.splice(index, 1);
+      const [removed] = index >= 0 ? state.exportHistory.splice(index, 1) : [];
+      if (removed?.id) dbDelete('export:' + removed.id);
       saveCounters(); showSection('exports'); toast('Exportação excluída do histórico.');
     });
     view.querySelectorAll('[data-action="visualizers"]').forEach(button => button.onclick = () => { const modes=['orbital','bars','spectrum2d','disc','triangles','mirror','wave','particles']; const mode=modes[Number(button.dataset.index)]||'orbital'; state.visual=mode; document.querySelectorAll('[data-visual]').forEach(x=>x.classList.toggle('active',x.dataset.visual===mode)); showSection('studio'); toast('Visual ' + mode + ' selecionado.'); });
@@ -1099,11 +1265,17 @@
     $('#playBtn').onclick = togglePlay; audio.addEventListener('play', () => $('#playBtn').textContent = 'Ⅱ'); audio.addEventListener('pause', () => $('#playBtn').textContent = '▶');
     audio.addEventListener('loadedmetadata', () => { const time = $('.track-time'); if (time) time.textContent = formatTime(audio.duration); });
     $('#exportBtn').onclick = exportAudio; $('#cancelExportBtn')?.addEventListener('click', cancelExport); $('#resetControls').onclick = resetControls;
+    $('#downloadExportBtn')?.addEventListener('click', () => {
+      if (!state.lastExportBlob || !state.lastExportFilename) { toast('Gere uma exportação antes de baixar.'); return; }
+      downloadBlob(state.lastExportBlob, state.lastExportFilename);
+      toast('Download iniciado.');
+    });
     ['bass','treble','sensitivity','smooth','noiseReduction'].forEach(id => { const input = $('#' + id); if (input) input.addEventListener('input', e => setControl(id, e.target.value)); });
     document.querySelectorAll('[data-eq]').forEach(input => input.addEventListener('input', e => setControl('eq' + e.target.dataset.eq, e.target.value)));
     $('#muteBtn').onclick = () => { state.muted = !state.muted; audio.muted = state.muted; $('#muteBtn').textContent = state.muted ? 'Unmute' : 'Mute'; };
     document.querySelectorAll('[data-visual]').forEach(btn => btn.onclick = () => { state.visual = btn.dataset.visual; document.querySelectorAll('[data-visual]').forEach(x => x.classList.toggle('active', x === btn)); });
     ['barCount','visualIntensity','visualRotation','visualOpacity','bassResponse','pulseAmount','glowAmount','barPlacement'].forEach(id => { const input=$('#'+id); if(input){ input.value = id==='barCount'?state.barCount:id==='visualIntensity'?Math.round(state.visualIntensity*100):id==='visualRotation'?state.visualRotation:id==='visualOpacity'?Math.round(state.visualOpacity*100):id==='bassResponse'?Math.round(state.bassResponse*100):id==='pulseAmount'?Math.round(state.pulseAmount*100):id==='glowAmount'?Math.round(state.glowAmount*100):state.barPlacement; input.addEventListener('input', e => setVisualSetting(id, e.target.value)); setVisualSetting(id,input.value); } });
+    ['waveStyle','waveThickness'].forEach(id => { const input = $('#' + id); if (input) { input.value = id === 'waveStyle' ? state.waveStyle : Math.round(state.waveThickness * 100); input.addEventListener(id === 'waveStyle' ? 'change' : 'input', event => setWaveSetting(id, event.target.value)); setWaveSetting(id, input.value); } });
     const coreToggle = $('#toggleCoreEditor'), coreBody = $('#coreEditorBody');
     if (coreToggle && coreBody) coreToggle.onclick = () => { const open = coreBody.hidden; coreBody.hidden = !open; coreToggle.setAttribute('aria-expanded', String(open)); coreToggle.textContent = open ? 'Fechar' : 'Editar'; };
     const centerText = $('#centerText'); if (centerText) { centerText.value = state.centerText; centerText.addEventListener('input', event => setCenterSetting('centerText', event.target.value)); }
@@ -1148,14 +1320,17 @@
       if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
       if (state.backgroundUrl) URL.revokeObjectURL(state.backgroundUrl);
       if (state.orbitalOverlayUrl) URL.revokeObjectURL(state.orbitalOverlayUrl);
+      if (state.centerImageUrl) URL.revokeObjectURL(state.centerImageUrl);
       if (state.backgroundVideo) { state.backgroundVideo.pause(); state.backgroundVideo.removeAttribute('src'); state.backgroundVideo.load(); }
       state.objectUrl=''; state.fileBlob=null; state.fileKey=''; state.fileName=''; state.backgroundUrl=''; state.backgroundImage=state.defaultArtwork; state.backgroundVideo=null; $('#canvasWrap')?.classList.remove('has-custom-bg');
       state.orbitalOverlayUrl=''; state.orbitalOverlay=null;
+      state.centerImageUrl=''; state.centerImage=null;
       audio.pause(); audio.removeAttribute('src'); audio.load();
       const imagePreview=$('#bgImagePreview'), videoPreview=$('#bgVideoPreview'); if(imagePreview){imagePreview.removeAttribute('src');imagePreview.hidden=true;} if(videoPreview){videoPreview.pause();videoPreview.removeAttribute('src');videoPreview.hidden=true;}
       $('#trackInfo').classList.add('empty'); $('#trackInfo').innerHTML='<div class="track-art">♪</div><div><b>Nenhuma faixa carregada</b><small>Seu áudio fica somente neste dispositivo</small></div><span class="track-time">—</span>';
       $('#nowTitle').textContent='Nenhuma faixa selecionada'; $('#nowMeta').textContent='Importe um áudio para começar';
-      dbPut('session', null); dbPut('background-image', null); dbPut('background-video', null); dbPut('wave-overlay', null);
+      const centerName=$('#centerImageName'); if(centerName) centerName.textContent='Usar imagem própria';
+      dbDelete('session'); dbDelete('background-image'); dbDelete('background-video'); dbDelete('wave-overlay'); dbDelete('center-art');
       updateQuota(); updateExportButton(); toast('Sessão limpa.'); 
     };
     $('#learnMore').onclick = () => toast('O áudio é analisado localmente com a Web Audio API.');
@@ -1177,15 +1352,19 @@
     };
     const formatSelect = $('#exportFormat');
     if (formatSelect) formatSelect.onchange = event => {
+      if (event.target.value === 'mp4' && !browserSupportsMp4Export()) {
+        event.target.value = 'webm'; state.exportFormat = 'webm'; updateExportButton();
+        toast('MP4 não é exportado por este navegador. WebM foi selecionado.');
+        return;
+      }
       state.exportFormat = event.target.value;
-      const button = $('#exportBtn');
       updateExportButton();
     };
     const imageInput = $('#bgImageInput');
     if (imageInput) imageInput.onchange = event => setBackgroundImage(event.target.files[0]);
     const videoInput = $('#bgVideoInput');
     if (videoInput) videoInput.onchange = event => setBackgroundVideo(event.target.files[0]);
-    ['bgOpacity','bgZoom','bgX','bgY','bgBrightness','bgContrast','bgBlur','backgroundFit','visualLayer'].forEach(id => { const input=$('#'+id); if(input){ input.value = id==='bgOpacity'?Math.round(state.bgOpacity*100):id==='bgZoom'?Math.round(state.bgZoom*100):id==='bgX'?state.bgX:id==='bgY'?state.bgY:id==='bgBrightness'?state.bgBrightness:id==='bgContrast'?state.bgContrast:id==='bgBlur'?state.bgBlur:id==='backgroundFit'?state.backgroundFit:state.visualLayer; input.addEventListener('input', e => setBackgroundSetting(id, e.target.value)); input.addEventListener('change', e => setBackgroundSetting(id, e.target.value)); setBackgroundSetting(id,input.value); } });
+    ['bgOpacity','bgZoom','bgX','bgY','bgBrightness','bgContrast','bgBlur','bgRotation','backgroundFit','visualLayer'].forEach(id => { const input=$('#'+id); if(input){ input.value = id==='bgOpacity'?Math.round(state.bgOpacity*100):id==='bgZoom'?Math.round(state.bgZoom*100):id==='bgX'?state.bgX:id==='bgY'?state.bgY:id==='bgBrightness'?state.bgBrightness:id==='bgContrast'?state.bgContrast:id==='bgBlur'?state.bgBlur:id==='bgRotation'?state.bgRotation:id==='backgroundFit'?state.backgroundFit:state.visualLayer; input.addEventListener('input', e => setBackgroundSetting(id, e.target.value)); input.addEventListener('change', e => setBackgroundSetting(id, e.target.value)); setBackgroundSetting(id,input.value); } });
     const exportName = $('#exportName'); if (exportName) { exportName.value = state.exportName; exportName.oninput = e => { state.exportName=e.target.value; localStorage.setItem('aurora-export-name',state.exportName); }; }
     document.querySelectorAll('.style-chip').forEach(button => button.onclick = () => applyVisualStyle(button.dataset.style));
     const accentPicker = $('#accentColor');
