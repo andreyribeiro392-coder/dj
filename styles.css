@@ -929,3 +929,9 @@ h1,h2,h3,.brand strong,.primary-btn,.secondary-btn,.outline-btn{font-family:"Spa
   .bottom-grid{grid-template-columns:1fr}.eq-sliders{grid-template-columns:1fr!important}.queue-panel,.export-panel{min-height:0}
 }
 @media(prefers-reduced-motion:reduce){.project-pulse{animation:none}.primary-btn,.tiny{transition:none}}
+
+/* Controles densos sem esconder a cena em telas pequenas. */
+.scene-core-editor{max-height:calc(100% - 48px);overflow:auto;overscroll-behavior:contain}
+.scene-core-editor::-webkit-scrollbar{width:7px}.scene-core-editor::-webkit-scrollbar-thumb{background:#334152;border-radius:99px}
+.settings-stack{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.settings-card{min-height:210px}.settings-card .field-label{display:grid;gap:8px;margin-top:14px}.settings-card select{min-height:42px;border:1px solid #2d3d4d;border-radius:10px;padding:0 10px;background:#0a1018;color:#eef5f7}.export-panel #downloadExportBtn{width:calc(100% - 40px);margin:10px 20px 0}.export-panel #cancelExportBtn{width:calc(100% - 40px);margin:10px 20px 0}
+@media(max-width:760px){.scene-core-editor{top:42px;right:8px;max-height:calc(100% - 54px);width:min(266px,calc(100% - 16px))}.settings-stack{grid-template-columns:1fr}.visual-settings{grid-template-columns:1fr 1fr}.visual-settings label:last-child{grid-column:auto}}
