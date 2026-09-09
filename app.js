@@ -1243,14 +1243,36 @@
     }
     document.querySelectorAll('.nav-item').forEach(item => { const active = item.dataset.section === section; item.classList.toggle('active', active); item.setAttribute('aria-current', active ? 'page' : 'false'); });
     $('#sectionTitle').textContent = section === 'studio' ? 'Studio' : sectionData[section].title;
-    const studio = $('#studioSection'), bottom = document.querySelector('.bottom-grid'), info = document.querySelector('.info-strip');
+    const studio = $('#studioSection');
+    const composition = $('#compositionPanel');
+    const bottom = document.querySelector('.bottom-grid');
+    const info = document.querySelector('.info-strip');
     let view = $('#directoryView');
     if (section === 'studio') {
-      studio.hidden = false; bottom.hidden = false; info.hidden = false; if (view) view.remove(); return;
+      studio.hidden = false;
+      if (composition) composition.hidden = false;
+      bottom.hidden = false;
+      info.hidden = false;
+      if (view) view.remove();
+      return;
     }
-    studio.hidden = true; bottom.hidden = true; info.hidden = true;
-    if (!view) { view = document.createElement('div'); view.id = 'directoryView'; $('.content').appendChild(view); }
-    view.innerHTML = ''; view.appendChild(renderDirectory(section)); bindDirectoryActions(view, section);
+    // Every side-menu item owns the whole workspace area. Keeping the Studio
+    // composition visible here made later navigation look as if it was stuck
+    // on the first module selected.
+    studio.hidden = true;
+    if (composition) composition.hidden = true;
+    bottom.hidden = true;
+    info.hidden = true;
+    if (!view) {
+      view = document.createElement('div');
+      view.id = 'directoryView';
+      // Place module pages directly below the project header, instead of after
+      // hidden Studio panels. This also makes every module switch immediate.
+      if (composition) composition.before(view); else $('.content').appendChild(view);
+    }
+    view.hidden = false;
+    view.replaceChildren(renderDirectory(section));
+    bindDirectoryActions(view, section);
   }
   function openLogin() { $('#loginModal').hidden = false; $('#loginStatus').textContent = window.DJ_CONFIG?.googleClientId ? 'Você será redirecionado para o login seguro do Google.' : 'Adicione o Client ID no arquivo config.js para ativar.'; }
   function closeLogin() { $('#loginModal').hidden = true; }
