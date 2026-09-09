@@ -1057,3 +1057,32 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
   .composition-grid,.background-controls{gap:12px}
   .bottom-grid{gap:14px}
 }
+
+/* Preto fosco: superfícies sem brilho decorativo, com contraste só nos controles. */
+:root{
+  --design-bg:#050505;
+  --design-surface:#090909;
+  --design-surface-2:#0d0d0e;
+  --design-surface-3:#121214;
+  --design-border:#202024;
+  --design-border-strong:#303036;
+}
+html,body{background:#050505}
+body{background-image:none}
+.liquid,.grid-glow{display:none}
+.sidebar{background:#070707;border-right-color:#1a1a1d;box-shadow:18px 0 48px #0008}
+.topbar{background:#070707f5;border-bottom-color:#1a1a1d}
+.project-command,.panel,.directory-card{background:#0b0b0c;border-color:#232328;box-shadow:0 16px 42px #0008,inset 0 1px #ffffff03}
+.panel:hover,.directory-card:hover{border-color:#35353b}
+.panel-heading,.visual-panel .panel-heading{background:#0d0d0f;border-bottom-color:#202025}
+.nav-item:hover{background:#101012;border-color:#26262b}
+.nav-item.active{background:#151518;border-color:#35353b;box-shadow:inset 2px 0 var(--design-cyan)}
+.plan-card,.login-link,.quota,.project-command .quota,.visual-settings,.equalizer,.now-playing,.history-item,.library-toolbar,.info-strip{background:#0a0a0b;border-color:#232328}
+.canvas-wrap,.background-preview-wrap{background:#000;border-color:#25252b;box-shadow:inset 0 0 0 1px #19191d,inset 0 0 70px #000}
+.tiny,.style-chip,.outline-btn,.secondary-btn{background:#111114;border-color:#303036}
+.tiny:hover,.style-chip:hover,.outline-btn:hover,.secondary-btn:hover{background:#18181b;border-color:#4a4a52}
+.dropzone{background:#09090a;border-color:#303036;box-shadow:inset 0 0 28px #0007}
+.dropzone:hover,.dropzone.drag{background:#101012;border-color:#5a7d80}
+.field-label select,.field-label input,.upload-mini input,.background-controls select,.settings-card select{background:#09090a;border-color:#303036}
+.background-controls,.style-row{border-color:#202025}
+.scene-core-editor{background:#09090bf5;border-color:#303036}
